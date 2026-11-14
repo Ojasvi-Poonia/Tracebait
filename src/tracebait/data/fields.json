@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "name": "process.command_line",
+      "aliases": {
+        "ecs": "process.command_line",
+        "sysmon": "CommandLine"
+      },
+      "max_length": 8191,
+      "length_unit": "utf16_units",
+      "charset": "[^\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f\\ud800-\\udfff\\ufffd-\\uffff]",
+      "placement": "append",
+      "basis": "8,191 UTF-16 units: cmd.exe caps a command line at 8,191 and Elastic logsdb (the default for logs-* from Elasticsearch 9.0) does not index longer values. CreateProcessW allows 32,766 and Sysmon EID 1 keeps about 30,000, so 8,191 survives every Windows launch path and every Elastic store. Splunk's default TRUNCATE (10,000 bytes per raw XML event) can bind lower for splunk/attack_data packs, and Security 4688 is verified intact only to 5,137. NUL is impossible; other C0 controls except TAB/LF, CR, C1 and U+FFFD-U+FFFF are not logged faithfully. OTRF JSON repeats the command line in Message, so packs must drop Message (make_twin refuses incidents that repeat the target value).",
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+        "https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation",
+        "https://github.com/microsoft/SysmonCommon/blob/main/eventsCommon.cpp",
+        "https://github.com/microsoft/SysmonCommon/blob/main/manifest.xml",
+        "https://github.com/microsoft/SysmonCommon/blob/main/parsecommandline.c"
+      ]
+    },
+    {
+      "name": "process.parent.command_line",
+      "aliases": {
+        "ecs": "process.parent.command_line",
+        "sysmon": "ParentCommandLine"
+      },
+      "max_length": 8191,
+      "length_unit": "utf16_units",
+      "charset": "[^\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f\\ud800-\\udfff\\ufffd-\\uffff]",
+      "placement": "append",
+      "basis": "Same OS and index limits as process.command_line (it is the parent's own command line). Sysmon trims this field first, to no fewer than 263 characters, when an EID 1 event exceeds its 62,000-byte budget; at 8,191 for both command lines the event stays well under it.",
+      "sources": [
+        "https://github.com/microsoft/SysmonCommon/blob/main/eventsCommon.cpp",
+        "https://github.com/microsoft/SysmonCommon/blob/main/manifest.xml",
+        "https://github.com/microsoft/SysmonCommon/blob/main/parsecommandline.c",
+        "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+        "https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation"
+      ]
+    },
+    {
+      "name": "user_agent.original",
+      "aliases": {
+        "ecs": "user_agent.original"
+      },
+      "max_length": 8000,
+      "length_unit": "utf8_bytes",
+      "charset": "[\\x20\\x21\\x23-\\x5b\\x5d-\\x7e]",
+      "placement": "append",
+      "trim_chars": " ",
+      "basis": "Web and proxy access logs: nginx and Apache reject header lines over about 8 KB, and AWS ALB truncates user_agent over '8 KB' (8,000 used as the floor). IIS replaces values over 4,096 bytes with '...', so IIS-sourced packs need 4,096. Printable ASCII only: access logs escape double quote and backslash, and write control or non-ASCII bytes as \\xHH. Servers trim leading and trailing spaces, so the value must not end in one. Keep CloudTrail packs in the cloudtrail schema: CloudTrail's own 1 KB limit applies to them, not this one.",
+      "sources": [
+        "https://www.rfc-editor.org/rfc/rfc9110.txt",
+        "https://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_buffers",
+        "https://raw.githubusercontent.com/nginx/nginx/master/src/http/ngx_http_request.c",
+        "https://raw.githubusercontent.com/nginx/nginx/master/src/http/ngx_http_parse.c",
+        "https://raw.githubusercontent.com/nginx/nginx/master/src/http/modules/ngx_http_log_module.c"
+      ]
+    },
+    {
+      "name": "aws.cloudtrail.user_agent",
+      "aliases": {
+        "cloudtrail": "userAgent"
+      },
+      "max_length": 1000,
+      "length_unit": "utf8_bytes",
+      "charset": "[\\x20-\\x7e]",
+      "placement": "append",
+      "trim_chars": " ",
+      "basis": "CloudTrail truncates userAgent over '1 KB' (1,000 used as the floor; AWS does not say 1,000 or 1,024) in trails, Event history and 256 KB event data stores. S3 data events wrap the agent in brackets; payloads must then go before the closing ']', which tracebait does not support yet. The value must not end in a space.",
+      "sources": [
+        "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference-record-contents.html",
+        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/cloudtrail-logging-understanding-s3-entries.html",
+        "https://raw.githubusercontent.com/elastic/integrations/main/packages/aws/data_stream/cloudtrail/elasticsearch/ingest_pipeline/default.yml",
+        "https://www.elastic.co/docs/reference/enrich-processor/user-agent-processor",
+        "https://raw.githubusercontent.com/boto/botocore/develop/botocore/auth.py"
+      ]
+    },
+    {
+      "name": "dns.question.name",
+      "aliases": {
+        "ecs": "dns.question.name",
+        "sysmon": "QueryName"
+      },
+      "max_length": 253,
+      "length_unit": "code_points",
+      "charset": "[a-z0-9._-]",
+      "placement": "prepend",
+      "segment_separator": ".",
+      "max_segment_length": 63,
+      "basis": "RFC 1035: names are at most 255 octets on the wire, so 253 characters in presentation form, with labels of at most 63. An attacker who owns a domain controls only its leading labels, so payloads are prepended and should end with '.'. Lowercase letters, digits, '.', '_' and '-' survive every producer checked (Sysmon keeps case and a trailing dot; Packetbeat drops the dot).",
+      "sources": [
+        "https://www.rfc-editor.org/rfc/rfc1035.txt",
+        "https://www.rfc-editor.org/rfc/rfc2181.txt",
+        "https://github.com/elastic/ecs/blob/main/schemas/dns.yml",
+        "https://github.com/elastic/ecs/blob/main/generated/elasticsearch/composable/component/dns.json",
+        "https://github.com/elastic/integrations/blob/main/packages/windows/_dev/shared/ingest_pipeline/sysmon_operational.yml"
+      ]
+    },
+    {
+      "name": "file.name",
+      "aliases": {
+        "ecs": "file.name"
+      },
+      "max_length": 255,
+      "length_unit": "utf16_units",
+      "charset": "[^\\x00-\\x1f\\x7f-\\x9f\"*/:<>?\\\\|\\ud800-\\udfff\\ufffd-\\uffff]",
+      "placement": "prepend",
+      "basis": "NTFS, exFAT and FAT32 allow 255 UTF-16 units per file name (Linux NAME_MAX is 255 bytes, so Linux-origin packs must count UTF-8 bytes). Windows forbids control characters and <>:\"/\\|?*; reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) are not checked here. Payloads are prepended so the extension, which is evidence, stays intact. Sysmon TargetFilename is a full path and is not supported yet.",
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file",
+        "https://learn.microsoft.com/en-us/windows/win32/fileio/filesystem-functionality-comparison",
+        "https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation",
+        "https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats",
+        "https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/limits.h"
+      ]
+    },
+    {
+      "name": "aws.cloudtrail.request_parameters.roleSessionName",
+      "aliases": {
+        "cloudtrail": "requestParameters.roleSessionName",
+        "ecs": "aws.cloudtrail.flattened.request_parameters.roleSessionName"
+      },
+      "max_length": 64,
+      "length_unit": "code_points",
+      "charset": "[A-Za-z0-9_+=,.@-]",
+      "placement": "append",
+      "basis": "STS AssumeRole RoleSessionName: 2 to 64 characters from [A-Za-z0-9_+=,.@-]. The API rejects anything else before CloudTrail records it, so payloads here have no spaces.",
+      "sources": [
+        "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
+        "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_saml_assertions.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html"
+      ]
+    },
+    {
+      "name": "aws.cloudtrail.request_parameters.sourceIdentity",
+      "aliases": {
+        "cloudtrail": "requestParameters.sourceIdentity",
+        "ecs": "aws.cloudtrail.flattened.request_parameters.sourceIdentity"
+      },
+      "max_length": 64,
+      "length_unit": "code_points",
+      "charset": "[A-Za-z0-9_+=,.@-]",
+      "placement": "append",
+      "basis": "STS SourceIdentity: the API reference says 2 to 64 characters (the IAM User Guide says 256; 64 is the safe bound), from [A-Za-z0-9_+=,.@-], and it may not start with 'aws:'.",
+      "sources": [
+        "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
+        "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithSAML.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_monitor.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_saml_assertions.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html"
+      ]
+    },
+    {
+      "name": "aws.cloudtrail.request_parameters.userName",
+      "aliases": {
+        "cloudtrail": "requestParameters.userName"
+      },
+      "max_length": 64,
+      "length_unit": "code_points",
+      "charset": "[A-Za-z0-9_+=,.@-]",
+      "placement": "append",
+      "basis": "IAM CreateUser UserName: 1 to 64 characters from [A-Za-z0-9_+=,.@-]. For events other than CreateUser the name must already exist, so the payload has to be part of the user's name from creation.",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateUser.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html",
+        "https://raw.githubusercontent.com/elastic/integrations/main/packages/aws/data_stream/cloudtrail/elasticsearch/ingest_pipeline/default.yml",
+        "https://raw.githubusercontent.com/elastic/ecs/main/generated/elasticsearch/composable/component/user.json",
+        "https://github.com/elastic/integrations/tree/main/packages/aws/data_stream/cloudtrail/_dev/test/pipeline"
+      ]
+    },
+    {
+      "name": "aws.cloudtrail.request_parameters.groupDescription",
+      "aliases": {
+        "cloudtrail": "requestParameters.groupDescription",
+        "ecs": "aws.cloudtrail.flattened.request_parameters.groupDescription"
+      },
+      "max_length": 255,
+      "length_unit": "code_points",
+      "charset": "[A-Za-z0-9 ._:/()#,@+=&;{}!$*\\[\\]-]",
+      "placement": "append",
+      "basis": "EC2 CreateSecurityGroup GroupDescription: up to 255 characters from a documented ASCII set (letters, digits, space and ._-:/()#,@[]+=&;{}!$*). The API rejects anything else.",
+      "sources": [
+        "https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateSecurityGroup.html",
+        "https://docs.blinkops.com/docs/integrations/aws/triggers/new-security-group",
+        "https://github.com/elastic/integrations/tree/main/packages/aws/data_stream/cloudtrail/_dev/test/pipeline"
+      ]
+    },
+    {
+      "name": "aws.cloudtrail.request_parameters.description",
+      "aliases": {
+        "cloudtrail": "requestParameters.description"
+      },
+      "max_length": 256,
+      "length_unit": "code_points",
+      "charset": "[\\x20-\\x7e]",
+      "placement": "append",
+      "basis": "The requestParameters.description key carries IAM role and policy descriptions (1,000) and KMS key descriptions (8,192); Lambda (probably 256) uses it too, but its key casing is unverified, and services such as Directory Service (128) are not covered. 256 is conservative for IAM and KMS only. Characters are narrowed to printable ASCII until the KMS character set is verified.",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html",
+        "https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateRole.html",
+        "https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html",
+        "https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateKey.html",
+        "https://docs.aws.amazon.com/kms/latest/developerguide/ct-createkey.html"
+      ]
+    }
+  ]
+}
