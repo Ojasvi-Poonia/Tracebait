@@ -1,0 +1,93 @@
+[project]
+name = "tracebait"
+version = "0.0.1"
+description = "Red-team harness that tests whether attacker-written log fields can steer AI SOC agents"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+    { name = "Ojasvi Poonia", email = "i.ojasvipoonia@gmail.com" }
+]
+requires-python = ">=3.11"
+keywords = ["security", "prompt-injection", "red-team", "soc", "mcp", "llm"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.14,<3",
+    "typer>=0.27,<1",
+]
+
+[project.scripts]
+tracebait = "tracebait.cli:app"
+
+[project.urls]
+Repository = "https://github.com/Ojasvi-Poonia/Tracebait"
+Issues = "https://github.com/Ojasvi-Poonia/Tracebait/issues"
+Changelog = "https://github.com/Ojasvi-Poonia/Tracebait/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170",
+    "mypy>=2.4",
+    "pytest>=9.2",
+    "pytest-cov>=7.1",
+    "ruff>=0.17.3",
+]
+
+[tool.uv]
+required-version = ">=0.13.6"
+
+[tool.uv.build-backend]
+# Ship tests, docs and the changelog in the sdist so downstream packagers can verify it.
+source-include = ["tests/**", "docs/**", "CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "N", "S", "PT", "PTH", "C4", "RET", "ARG"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S603"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
+markers = ["packaging: builds the wheel and installs it into a fresh venv (needs uv)"]
+
+[tool.coverage.run]
+branch = true
+source = ["tracebait"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true

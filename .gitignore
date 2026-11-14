@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+
+# Tooling caches
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# tracebait run output and dataset cache
+tracebait-out/
+
+.DS_Store
+
+# Local secrets (runners will need API keys) and editor settings
+.env
+.env.*
+!.env.example
+.envrc
+.idea/
+.vscode/

@@ -1,0 +1,6 @@
+# Normalise line endings so checkouts behave the same on every platform.
+* text=auto eol=lf
+
+# Generated or reference files: collapse them in diffs and language stats.
+uv.lock linguist-generated=true
+docs/field-limits.md linguist-documentation=true

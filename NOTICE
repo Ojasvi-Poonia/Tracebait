@@ -1,0 +1,18 @@
+tracebait
+Copyright 2026 Ojasvi Poonia and the tracebait contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Payloads
+--------
+Every prompt-injection payload shipped with tracebait is original work written for
+this project. No payload text is copied from papers, datasets or other tools.
+
+Third-party data
+----------------
+Incident packs under src/tracebait/data/packs/ will contain small, attributed slices of
+public security datasets. Each pack's source, licence and upstream commit will be listed
+here when the pack is added.
+
+Field limits in src/tracebait/data/fields.json are facts collected from public
+documentation; each entry lists its sources.
