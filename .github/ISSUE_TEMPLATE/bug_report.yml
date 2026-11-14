@@ -1,0 +1,41 @@
+name: Bug report
+description: Something in tracebait does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not report security vulnerabilities here; follow
+        the [security policy](https://github.com/Ojasvi-Poonia/Tracebait/security/policy).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the full error message or traceback.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: The smallest code or command that shows the problem. Use fenced code blocks.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: tracebait version or commit
+      description: Output of `tracebait --version`; if you run from a clone, also `git rev-parse --short HEAD`.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python version and operating system
+      placeholder: Python 3.12.4 on Ubuntu 24.04
