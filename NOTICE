@@ -10,9 +10,39 @@ this project. No payload text is copied from papers, datasets or other tools.
 
 Third-party data
 ----------------
-Incident packs under src/tracebait/data/packs/ will contain small, attributed slices of
-public security datasets. Each pack's source, licence and upstream commit will be listed
-here when the pack is added.
+Incident packs under src/tracebait/data/packs/ contain small, attributed slices of public
+security datasets. Each pack also records its sources' archive URLs and SHA-256 digests,
+and scripts/build_packs.py rebuilds it from them. Selected records are kept verbatim
+except that the rendered Message field is removed and numbers are written as strings.
+
+otrf-credential-access.json
+  Source:   OTRF Security-Datasets, https://github.com/OTRF/Security-Datasets
+  Commit:   d9d40ef123d2c87d5d3df28c96bcab4f0faccc87
+  Datasets: SDWIN-201018195009 (psh_lsass_memory_dump_comsvcs.zip),
+            SDWIN-201019002900 (cmd_sam_copy_esentutl.zip)
+  Licence:  MIT, reproduced below.
+
+    MIT License
+
+    Copyright (c) 2021 Open Threat Research Forge
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
 
 Field limits in src/tracebait/data/fields.json are facts collected from public
 documentation; each entry lists its sources.

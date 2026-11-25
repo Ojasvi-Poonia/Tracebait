@@ -45,6 +45,7 @@ def test_wheel_ships_package_data(wheel: Path) -> None:
     names = set(zipfile.ZipFile(wheel).namelist())
 
     assert "tracebait/data/fields.json" in names
+    assert "tracebait/data/packs/otrf-credential-access.json" in names
     assert "tracebait/py.typed" in names
 
 

@@ -1,15 +1,55 @@
 """Build twins: a clean incident plus a copy with one payload added to one field."""
 
-from tracebait.field_registry import FieldRegistry, UnknownFieldError
-from tracebait.models import FieldSpec, Incident, LogEntry, Payload, Placement, Twin
+from typing import NamedTuple
 
-# A value at least this long is a mirror if it appears anywhere inside another field;
-# a shorter (non-empty) one only if another field equals it exactly.
+from tracebait.field_registry import FieldRegistry, UnknownFieldError
+from tracebait.models import Change, FieldSpec, Incident, LogEntry, Payload, Placement, Twin
+
+# Values at least this long are mirrored by any field that contains them (see find_mirror).
 MIN_MIRROR_LENGTH = 8
 
 
 class TwinError(ValueError):
     """The payload cannot be placed in this incident as requested."""
+
+
+class Target(NamedTuple):
+    """A place in an incident a payload can be added to."""
+
+    entry_index: int
+    raw_field: str
+    field: str  # the FieldSpec.name
+
+
+def targets(incident: Incident, registry: FieldRegistry) -> tuple[Target, ...]:
+    """Every registry field present in an entry whose value is not repeated elsewhere."""
+    return tuple(
+        Target(index, raw, spec.name)
+        for index, entry in enumerate(incident.entries)
+        for spec in registry.fields
+        if (raw := spec.raw_name(entry.schema_name)) is not None
+        and raw in entry.fields
+        and find_mirror(incident, index, raw) is None
+    )
+
+
+def find_mirror(incident: Incident, index: int, raw_field: str) -> Change | None:
+    """The first other field that repeats this field's value, if any.
+
+    A value of MIN_MIRROR_LENGTH or more is repeated if it appears inside another field;
+    a shorter (non-empty) one only if another field equals it exactly.
+    """
+    original = incident.entries[index].fields[raw_field]
+    if not original:
+        return None
+    long_value = len(original) >= MIN_MIRROR_LENGTH
+    for i, entry in enumerate(incident.entries):
+        for key, other in entry.fields.items():
+            if (i, key) == (index, raw_field):
+                continue
+            if (original in other) if long_value else (original == other):
+                return Change(i, key)
+    return None
 
 
 def make_twin(
@@ -33,8 +73,8 @@ def make_twin(
     except UnknownFieldError as exc:
         raise TwinError(str(exc)) from exc
     index, raw_field = _locate(incident, spec, entry_index)
+    _check_no_mirrors(incident, index, raw_field)
     original = incident.entries[index].fields[raw_field]
-    _check_no_mirrors(incident, index, raw_field, original)
     value = spec.place(original, payload.text)
     _check_fits(spec, payload, value)
     return Twin(
@@ -67,19 +107,13 @@ def _locate(incident: Incident, spec: FieldSpec, entry_index: int | None) -> tup
     return index, candidates[index]
 
 
-def _check_no_mirrors(incident: Incident, index: int, raw_field: str, original: str) -> None:
-    if not original:
-        return
-    long_value = len(original) >= MIN_MIRROR_LENGTH
-    for i, entry in enumerate(incident.entries):
-        for key, other in entry.fields.items():
-            if (i, key) == (index, raw_field):
-                continue
-            if (original in other) if long_value else (original == other):
-                raise TwinError(
-                    f"value of {raw_field!r} in entry {index} also appears in entry {i}"
-                    f" field {key!r}; drop that copy from the pack"
-                )
+def _check_no_mirrors(incident: Incident, index: int, raw_field: str) -> None:
+    mirror = find_mirror(incident, index, raw_field)
+    if mirror is not None:
+        raise TwinError(
+            f"value of {raw_field!r} in entry {index} also appears in entry {mirror.entry}"
+            f" field {mirror.key!r}; drop that copy from the pack"
+        )
 
 
 def _check_fits(spec: FieldSpec, payload: Payload, value: str) -> None:

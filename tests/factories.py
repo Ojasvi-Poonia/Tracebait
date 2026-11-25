@@ -14,6 +14,7 @@ from tracebait.models import (
     PayloadClass,
     Placement,
 )
+from tracebait.packs import PackSource
 
 # Any character except NUL: lets property tests focus on twin structure, not charsets.
 PERMISSIVE_CHARSET = "[^\\x00]"
@@ -87,4 +88,15 @@ def payload(
         text=text,
         atlas=("AML.T0051.001",),
         asi=("ASI01",),
+    )
+
+
+def pack_source(*, source_id: str = "OTRF:SDWIN-190518202151") -> PackSource:
+    return PackSource(
+        id=source_id,
+        title="Empire Mimikatz LogonPasswords",
+        url="https://raw.githubusercontent.com/OTRF/Security-Datasets/d9d40ef/datasets/x.zip",
+        sha256="0" * 64,
+        commit="d9d40ef123d2c87d5d3df28c96bcab4f0faccc87",
+        licence="MIT",
     )

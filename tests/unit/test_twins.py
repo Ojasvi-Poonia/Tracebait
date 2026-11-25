@@ -14,7 +14,7 @@ from tracebait.models import (
     Placement,
     changed_fields,
 )
-from tracebait.twins import TwinError, make_twin
+from tracebait.twins import Target, TwinError, make_twin, targets
 
 ORIGINAL = "cmd.exe /c mimikatz.exe sekurlsa::logonpasswords"
 
@@ -220,6 +220,43 @@ class TestMirroredValues:
         entry = f.sysmon_entry(CommandLine="cmd", Image="cmd.exe")
 
         assert make_twin(f.incident(entry), f.payload(text=" x"), f.registry())
+
+
+class TestTargets:
+    PARENT = f.field_spec(
+        "process.parent.command_line", aliases={LogSchema.SYSMON: "ParentCommandLine"}
+    )
+
+    def test_lists_every_registry_field_present_in_each_entry(self) -> None:
+        incident = f.incident(
+            f.sysmon_entry(EventID="3", DestinationIp="10.0.0.5"),
+            f.sysmon_entry(CommandLine="whoami /all", ParentCommandLine="explorer.exe"),
+        )
+
+        found = targets(incident, f.registry(f.field_spec(), self.PARENT))
+
+        assert found == (
+            Target(1, "CommandLine", "process.command_line"),
+            Target(1, "ParentCommandLine", "process.parent.command_line"),
+        )
+
+    def test_skips_mirrored_values(self) -> None:
+        long = "powershell.exe -noP -enc SQBFAFgA"
+        incident = f.incident(f.sysmon_entry(CommandLine=long, Message=f"CommandLine: {long}"))
+
+        assert targets(incident, f.registry()) == ()
+
+    def test_every_target_accepts_a_payload(self) -> None:
+        incident = f.incident(
+            f.sysmon_entry(CommandLine="a.exe", ParentCommandLine="b.exe"),
+            f.sysmon_entry(CommandLine="c.exe"),
+        )
+        registry = f.registry(f.field_spec(), self.PARENT)
+
+        for target in targets(incident, registry):
+            payload = f.payload(text=" x", field=target.field)
+            twin = make_twin(incident, payload, registry, entry_index=target.entry_index)
+            assert twin.raw_field == target.raw_field
 
 
 # --- property tests -------------------------------------------------------------------
