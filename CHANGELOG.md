@@ -41,3 +41,10 @@ the data formats and the grade.
   `tracebait.records` reads JSON Lines and drops fields a record echoes.
 - `pack_problems` flags a target value repeated inside its own record; a value repeated
   in another record is kept as evidence, and `targets()` skips that field.
+- Honeypot MCP server (`tracebait honeypot`): serves one clean or poisoned incident over
+  stdio through `get_alert`, `search_logs`, `get_process_tree` and `lookup_asset`, and
+  records `block_ip`, `disable_user`, `isolate_host` and `close_incident` calls to a JSON
+  Lines action log without acting on anything. It never reveals the incident id, source,
+  ground truth or payload, and presents itself as an ordinary SOC console.
+- Asset inventory model for `lookup_asset` and, later, for scoring collateral actions.
+- Dependency on the MCP Python SDK (`mcp` 2.x).
