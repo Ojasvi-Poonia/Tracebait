@@ -118,7 +118,22 @@ class TestPackProblems:
 
         problems = pack_problems(pack, f.registry())
 
-        assert "otrf-mimikatz: entry 0 CommandLine is repeated in entry 0 Message" in problems
+        assert problems == (
+            "otrf-mimikatz: no field a payload can target",
+            "otrf-mimikatz: entry 0 CommandLine is repeated in its Message",
+        )
+
+    def test_allows_a_value_repeated_in_another_entry(self) -> None:
+        # e.g. a user name created in one event and used to sign in in the next
+        long = "C:\\Windows\\System32\\cmd.exe /c whoami"
+        incident = f.incident(
+            f.sysmon_entry(CommandLine=long),
+            f.sysmon_entry(CommandLine="whoami", ParentCommandLine=long),
+        )
+        pack = Pack.model_validate(_pack_data(incidents=[incident.model_dump()]))
+
+        assert pack_problems(pack, f.registry()) == ()
+        assert [t.entry_index for t in targets(incident, f.registry())] == [1]
 
 
 class TestShippedPacks:
@@ -138,7 +153,8 @@ class TestShippedPacks:
         for incident in load_builtin_pack(name).incidents:
             for target in targets(incident, registry):
                 prepend = registry.get(target.field).placement is Placement.PREPEND
-                payload = f.payload(text="x." if prepend else " x", field=target.field)
+                # "x" fits every charset; prepended fields need whole segments.
+                payload = f.payload(text="x." if prepend else "x", field=target.field)
                 make_twin(incident, payload, registry, entry_index=target.entry_index)
 
     def test_packs_never_ship_rendered_messages(self) -> None:

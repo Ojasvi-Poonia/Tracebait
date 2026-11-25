@@ -11,9 +11,12 @@ this project. No payload text is copied from papers, datasets or other tools.
 Third-party data
 ----------------
 Incident packs under src/tracebait/data/packs/ contain small, attributed slices of public
-security datasets. Each pack also records its sources' archive URLs and SHA-256 digests,
-and scripts/build_packs.py rebuilds it from them. Selected records are kept verbatim
-except that the rendered Message field is removed and numbers are written as strings.
+security datasets. Each pack also records its sources' URLs and SHA-256 digests, and
+scripts/build_packs.py rebuilds it from them. Selected records are kept verbatim except
+for these changes: OTRF records lose their rendered Message field and have numbers
+written as strings; CloudTrail records are flattened to dotted keys with non-string
+values written as JSON text; and fields that echo a record's own values, listed in
+scripts/pack_recipes.py, are removed.
 
 otrf-credential-access.json
   Source:   OTRF Security-Datasets, https://github.com/OTRF/Security-Datasets
@@ -43,6 +46,14 @@ otrf-credential-access.json
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
+
+splunk-aws-iam.json
+  Source:   splunk/attack_data, https://github.com/splunk/attack_data
+  Commit:   68ab23c7527fa826ed4986c7bab7e3d18ec20eaf
+  Datasets: attack_techniques/T1078/aws_createaccesskey/aws_cloudtrail_events.json,
+            attack_techniques/T1078/aws_createloginprofile/aws_cloudtrail_events.json
+  Licence:  Apache License 2.0, the same licence as tracebait (see LICENSE). The upstream
+            repository has no NOTICE file. Changes are described above.
 
 Field limits in src/tracebait/data/fields.json are facts collected from public
 documentation; each entry lists its sources.

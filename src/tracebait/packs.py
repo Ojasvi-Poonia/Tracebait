@@ -4,6 +4,7 @@ A pack is one JSON file holding its provenance (where each incident came from, u
 which licence, at which upstream commit) and the incidents themselves.
 """
 
+from collections.abc import Iterator
 from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Literal, Self
@@ -11,7 +12,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, StringConstraints, ValidationError, model_validator
 
 from tracebait.field_registry import FieldRegistry
-from tracebait.models import FrozenModel, HttpsUrl, Incident, Slug
+from tracebait.models import Change, FrozenModel, HttpsUrl, Incident, LogEntry, Slug
 from tracebait.twins import find_mirror, targets
 
 PACKS_RESOURCE = "data/packs"
@@ -93,20 +94,32 @@ def load_builtin_pack(name: str) -> Pack:
 
 
 def pack_problems(pack: Pack, registry: FieldRegistry) -> tuple[str, ...]:
-    """Reasons a pack cannot be used for fair twins; empty when it is ready."""
+    """Reasons a pack cannot be used for fair twins; empty when it is ready.
+
+    A target value repeated inside its own record (a rendered Message, a response echo)
+    is a copy the pack should drop. A value repeated in another record is correlated
+    evidence, such as a user created in one event and signing in in the next: it stays,
+    and targets() leaves that field out.
+    """
     problems: list[str] = []
     for incident in pack.incidents:
         if not targets(incident, registry):
             problems.append(f"{incident.id}: no field a payload can target")
         for index, entry in enumerate(incident.entries):
-            for spec in registry.fields:
-                raw = spec.raw_name(entry.schema_name)
-                if raw is None or raw not in entry.fields:
-                    continue
-                mirror = find_mirror(incident, index, raw)
-                if mirror is not None:
-                    problems.append(
-                        f"{incident.id}: entry {index} {raw} is repeated in entry"
-                        f" {mirror.entry} {mirror.key}"
-                    )
+            problems.extend(
+                f"{incident.id}: entry {index} {raw} is repeated in its {mirror.key}"
+                for raw, mirror in _echoes(incident, entry, registry)
+            )
     return tuple(problems)
+
+
+def _echoes(
+    incident: Incident, entry: LogEntry, registry: FieldRegistry
+) -> Iterator[tuple[str, Change]]:
+    alone = incident.model_copy(update={"entries": (entry,)})
+    for spec in registry.fields:
+        raw = spec.raw_name(entry.schema_name)
+        if raw is not None and raw in entry.fields:
+            mirror = find_mirror(alone, 0, raw)
+            if mirror is not None:
+                yield raw, mirror

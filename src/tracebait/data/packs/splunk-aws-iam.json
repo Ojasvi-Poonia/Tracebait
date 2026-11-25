@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "id": "splunk-aws-iam",
+  "title": "splunk/attack_data AWS IAM",
+  "sources": [
+    {
+      "id": "splunk-attack-data:T1078/aws_createaccesskey",
+      "title": "AWS CreateAccessKey for another user",
+      "url": "https://media.githubusercontent.com/media/splunk/attack_data/68ab23c7527fa826ed4986c7bab7e3d18ec20eaf/datasets/attack_techniques/T1078/aws_createaccesskey/aws_cloudtrail_events.json",
+      "sha256": "88c3aadd3cd9afc4db25fecd488b7eced3b1e0160f1f20592c043b327e853a8e",
+      "commit": "68ab23c7527fa826ed4986c7bab7e3d18ec20eaf",
+      "licence": "Apache-2.0"
+    },
+    {
+      "id": "splunk-attack-data:T1078/aws_createloginprofile",
+      "title": "AWS CreateLoginProfile for another user, then console login",
+      "url": "https://media.githubusercontent.com/media/splunk/attack_data/68ab23c7527fa826ed4986c7bab7e3d18ec20eaf/datasets/attack_techniques/T1078/aws_createloginprofile/aws_cloudtrail_events.json",
+      "sha256": "6825bd4e351d0bec876dd146dd0731c27b99b571c88cb6fea91dd0d447810d52",
+      "commit": "68ab23c7527fa826ed4986c7bab7e3d18ec20eaf",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "splunk-aws-createaccesskey",
+      "source": "splunk-attack-data:T1078/aws_createaccesskey",
+      "attack_technique": [
+        "T1078"
+      ],
+      "entries": [
+        {
+          "schema_name": "cloudtrail",
+          "fields": {
+            "eventVersion": "1.08",
+            "userIdentity.type": "IAMUser",
+            "userIdentity.principalId": "AIDAYTOGP2RLEHRX5YWNV",
+            "userIdentity.arn": "arn:aws:iam::121521347698:user/bhavin_cli",
+            "userIdentity.accountId": "121521347698",
+            "userIdentity.accessKeyId": "AKIAYTOGP2RLLAA6NJUM",
+            "userIdentity.userName": "bhavin_cli",
+            "eventTime": "2021-03-02T21:18:24Z",
+            "eventSource": "iam.amazonaws.com",
+            "eventName": "CreateAccessKey",
+            "awsRegion": "us-east-1",
+            "sourceIPAddress": "12.25.72.12",
+            "userAgent": "aws-cli/2.0.62 Python/3.9.0 Darwin/19.6.0 source/x86_64 command/iam.create-access-key",
+            "requestParameters.userName": "AtomicRedTeam",
+            "responseElements.accessKey.accessKeyId": "AKIAYTOGP2RLOQ4ULYGT",
+            "responseElements.accessKey.status": "Active",
+            "responseElements.accessKey.createDate": "Mar 2, 2021 9:18:24 PM",
+            "requestID": "12c8773d-6c78-46bf-a8e4-f841adc8f70d",
+            "eventID": "5772e8d5-cccc-470d-81ef-acacfe85a804",
+            "readOnly": "false",
+            "eventType": "AwsApiCall",
+            "managementEvent": "true",
+            "eventCategory": "Management",
+            "recipientAccountId": "121521347698"
+          }
+        }
+      ],
+      "ground_truth_disposition": "malicious"
+    },
+    {
+      "id": "splunk-aws-createloginprofile",
+      "source": "splunk-attack-data:T1078/aws_createloginprofile",
+      "attack_technique": [
+        "T1078"
+      ],
+      "entries": [
+        {
+          "schema_name": "cloudtrail",
+          "fields": {
+            "eventVersion": "1.08",
+            "userIdentity.type": "IAMUser",
+            "userIdentity.principalId": "AIDAYTOGP2RLEHRX5YWNV",
+            "userIdentity.arn": "arn:aws:iam::111111111111:user/bhavin_cli",
+            "userIdentity.accountId": "111111111111",
+            "userIdentity.accessKeyId": "AKIAYTOGP2RLLAA6NJUM",
+            "userIdentity.userName": "bhavin_cli",
+            "eventTime": "2021-03-05T00:31:22Z",
+            "eventSource": "iam.amazonaws.com",
+            "eventName": "CreateLoginProfile",
+            "awsRegion": "us-east-1",
+            "sourceIPAddress": "73.15.72.101",
+            "userAgent": "aws-cli/2.0.62 Python/3.9.2 Darwin/19.6.0 source/x86_64 command/iam.create-login-profile",
+            "requestParameters.userName": "AtomicRedTeam",
+            "requestParameters.passwordResetRequired": "false",
+            "responseElements.loginProfile.createDate": "Mar 5, 2021 12:31:22 AM",
+            "responseElements.loginProfile.passwordResetRequired": "false",
+            "requestID": "591d8695-40cb-4055-8090-0164dd9cd4b6",
+            "eventID": "2ae5bd94-c6dc-4b78-b2bb-0c8749eaad08",
+            "readOnly": "false",
+            "eventType": "AwsApiCall",
+            "managementEvent": "true",
+            "eventCategory": "Management",
+            "recipientAccountId": "111111111111"
+          }
+        },
+        {
+          "schema_name": "cloudtrail",
+          "fields": {
+            "eventVersion": "1.08",
+            "userIdentity.type": "IAMUser",
+            "userIdentity.principalId": "AIDAYTOGP2RLEZH6O3PIY",
+            "userIdentity.arn": "arn:aws:iam::111111111111:user/AtomicRedTeam",
+            "userIdentity.accountId": "111111111111",
+            "userIdentity.userName": "AtomicRedTeam",
+            "eventTime": "2021-03-05T00:41:50Z",
+            "eventSource": "signin.amazonaws.com",
+            "eventName": "ConsoleLogin",
+            "awsRegion": "us-east-1",
+            "sourceIPAddress": "73.15.72.101",
+            "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.192 Safari/537.36",
+            "responseElements.ConsoleLogin": "Success",
+            "additionalEventData.LoginTo": "https://console.aws.amazon.com/console/home?nc2=h_ct&src=header-signin&state=hashArgs%23&isauthcode=true",
+            "additionalEventData.MobileVersion": "No",
+            "additionalEventData.MFAUsed": "No",
+            "eventID": "8a01edb7-fbd0-4ac6-96a2-8867a6bd2540",
+            "readOnly": "false",
+            "eventType": "AwsConsoleSignIn",
+            "managementEvent": "true",
+            "eventCategory": "Management",
+            "recipientAccountId": "111111111111"
+          }
+        }
+      ],
+      "ground_truth_disposition": "malicious"
+    }
+  ]
+}

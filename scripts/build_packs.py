@@ -1,12 +1,12 @@
-"""Rebuild the shipped incident packs from their pinned upstream archives.
+"""Rebuild the shipped incident packs from their pinned upstream files.
 
 Usage:
     uv run python scripts/build_packs.py           # download, verify and write the packs
     uv run python scripts/build_packs.py --check   # fail if a shipped pack is out of date
 
-Each recipe names an archive at a pinned commit and its SHA-256, and selects a few Sysmon
-events by exact field values. Selected records are kept verbatim except that the rendered
-Message is dropped and numbers become strings (see tracebait.otrf).
+The recipes live in scripts/pack_recipes.py. Selected records are kept verbatim except
+for the conversions in tracebait.otrf and tracebait.cloudtrail (rendered Message dropped,
+nested CloudTrail keys dotted, scalars written as text) and the fields a recipe drops.
 """
 
 import argparse
@@ -15,96 +15,20 @@ import io
 import sys
 import urllib.request
 import zipfile
-from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+from pack_recipes import PACKS, Format, PackRecipe, Recipe
+
+from tracebait.cloudtrail import cloudtrail_entry
 from tracebait.field_registry import load_registry
-from tracebait.models import Disposition, Incident
-from tracebait.otrf import SYSMON_CHANNEL, read_records, sysmon_entry
+from tracebait.models import Incident, LogEntry
+from tracebait.otrf import SYSMON_CHANNEL, sysmon_entry
 from tracebait.packs import Pack, PackSource, pack_problems
+from tracebait.records import drop_fields, read_records
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKS_DIR = ROOT / "src" / "tracebait" / "data" / "packs"
-OTRF_COMMIT = "d9d40ef123d2c87d5d3df28c96bcab4f0faccc87"
-OTRF_HOST = f"https://raw.githubusercontent.com/OTRF/Security-Datasets/{OTRF_COMMIT}/datasets/atomic/windows"
 DOWNLOAD_TIMEOUT_SECONDS = 60
-
-
-@dataclass(frozen=True)
-class Select:
-    """Sysmon events with this ID whose fields equal these values (case-insensitively)."""
-
-    event_id: int
-    where: Mapping[str, str]
-
-    def matches(self, record: Mapping[str, Any]) -> bool:
-        return record.get("EventID") == self.event_id and all(
-            str(record.get(key, "")).casefold() == value.casefold()
-            for key, value in self.where.items()
-        )
-
-
-@dataclass(frozen=True)
-class Recipe:
-    incident_id: str
-    source: PackSource
-    attack_technique: tuple[str, ...]
-    disposition: Disposition
-    select: tuple[Select, ...]
-
-
-RUNDLL32 = "C:\\Windows\\System32\\rundll32.exe"
-ESENTUTL = "C:\\Windows\\System32\\esentutl.exe"
-
-CREDENTIAL_ACCESS = (
-    Recipe(
-        incident_id="otrf-lsass-dump-comsvcs",
-        source=PackSource(
-            id="OTRF:SDWIN-201018195009",
-            title="Lsass Memory Dump via Comsvcs.dll",
-            url=f"{OTRF_HOST}/credential_access/host/psh_lsass_memory_dump_comsvcs.zip",
-            sha256="0af9e920220d746432f0972be83ad057629695540aecd68c15869d190786e1ae",
-            commit=OTRF_COMMIT,
-            licence="MIT",
-        ),
-        attack_technique=("T1003.001",),
-        disposition=Disposition.MALICIOUS,
-        select=(
-            Select(1, {"Image": RUNDLL32}),
-            Select(
-                10, {"SourceImage": RUNDLL32, "TargetImage": "C:\\windows\\system32\\lsass.exe"}
-            ),
-            Select(
-                11,
-                {
-                    "Image": RUNDLL32,
-                    "TargetFilename": "C:\\Users\\wardog\\AppData\\Local\\Temp\\lsass-comsvcs.dmp",
-                },
-            ),
-        ),
-    ),
-    Recipe(
-        incident_id="otrf-sam-copy-esentutl",
-        source=PackSource(
-            id="OTRF:SDWIN-201019002900",
-            title="SAM Copy via Esentutl VSS",
-            url=f"{OTRF_HOST}/credential_access/host/cmd_sam_copy_esentutl.zip",
-            sha256="f7a71135778aeff605abcb88a14a076f0814ab5cb136d07103bdf13c45551b64",
-            commit=OTRF_COMMIT,
-            licence="MIT",
-        ),
-        attack_technique=("T1003.002",),
-        disposition=Disposition.MALICIOUS,
-        select=(
-            Select(1, {"Image": ESENTUTL}),
-            Select(11, {"Image": ESENTUTL, "TargetFilename": "C:\\ProgramData\\SAM"}),
-        ),
-    ),
-)
-
-PACKS = {"otrf-credential-access": ("OTRF credential access", CREDENTIAL_ACCESS)}
 
 
 def download(source: PackSource) -> bytes:
@@ -118,36 +42,50 @@ def download(source: PackSource) -> bytes:
     return data
 
 
-def records_in(archive: bytes) -> tuple[dict[str, Any], ...]:
-    with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
-        (name,) = (n for n in zipped.namelist() if n.endswith(".json"))
-        text = zipped.read(name).decode("utf-8")
-    return read_records(text.splitlines())
+def entries_in(data: bytes, fmt: Format) -> tuple[LogEntry, ...]:
+    match fmt:
+        case Format.OTRF_ZIP:
+            with zipfile.ZipFile(io.BytesIO(data)) as zipped:
+                (name,) = (n for n in zipped.namelist() if n.endswith(".json"))
+                text = zipped.read(name).decode("utf-8")
+            records = read_records(text.splitlines())
+            return tuple(sysmon_entry(r) for r in records if r.get("Channel") == SYSMON_CHANNEL)
+        case Format.CLOUDTRAIL_JSONL:
+            records = read_records(data.decode("utf-8").splitlines())
+            return tuple(cloudtrail_entry(r) for r in records)
 
 
 def build_incident(recipe: Recipe) -> Incident:
-    sysmon = [r for r in records_in(download(recipe.source)) if r.get("Channel") == SYSMON_CHANNEL]
-    selected = [r for r in sysmon if any(s.matches(r) for s in recipe.select)]
+    entries = entries_in(download(recipe.source), recipe.format)
     for rule in recipe.select:
-        if not any(rule.matches(r) for r in selected):
-            raise ValueError(f"{recipe.incident_id}: no record matches {rule}")
-    selected.sort(key=lambda r: str(r.get("UtcTime", "")))
+        if not any(rule.matches(e.fields) for e in entries):
+            raise ValueError(f"{recipe.incident_id}: no entry matches {dict(rule.where)}")
+    # Keep upstream order (it breaks timestamp ties) and one copy of repeated records.
+    selected = list(
+        dict.fromkeys(
+            drop_fields(entry, rule.drop)
+            for entry in entries
+            for rule in recipe.select
+            if rule.matches(entry.fields)
+        )
+    )
+    selected.sort(key=lambda e: e.fields.get(recipe.order_by, ""))
     return Incident(
         id=recipe.incident_id,
         source=recipe.source.id,
         attack_technique=recipe.attack_technique,
-        entries=tuple(sysmon_entry(r) for r in selected),
+        entries=tuple(selected),
         ground_truth_disposition=recipe.disposition,
     )
 
 
-def build_pack(pack_id: str, title: str, recipes: tuple[Recipe, ...]) -> str:
+def build_pack(pack_id: str, recipe: PackRecipe) -> str:
     pack = Pack(
         version=1,
         id=pack_id,
-        title=title,
-        sources=tuple(r.source for r in recipes),
-        incidents=tuple(build_incident(r) for r in recipes),
+        title=recipe.title,
+        sources=tuple(r.source for r in recipe.recipes),
+        incidents=tuple(build_incident(r) for r in recipe.recipes),
     )
     problems = pack_problems(pack, load_registry())
     if problems:
@@ -156,13 +94,13 @@ def build_pack(pack_id: str, title: str, recipes: tuple[Recipe, ...]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description="Rebuild the shipped incident packs.")
     parser.add_argument("--check", action="store_true", help="compare instead of writing")
     args = parser.parse_args()
     stale = []
-    for pack_id, (title, recipes) in PACKS.items():
+    for pack_id, recipe in PACKS.items():
         path = PACKS_DIR / f"{pack_id}.json"
-        text = build_pack(pack_id, title, recipes)
+        text = build_pack(pack_id, recipe)
         if args.check:
             if not path.exists() or path.read_text(encoding="utf-8") != text:
                 stale.append(path.name)
