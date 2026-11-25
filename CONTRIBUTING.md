@@ -80,6 +80,9 @@ The payload corpus is not in the repository yet. When it lands:
 ## Incident packs
 
 - Use public datasets whose licences allow redistribution, and keep slices small.
+- Add a recipe to `scripts/build_packs.py` (archive URL at a pinned commit, its SHA-256
+  and the events to select), run `uv run python scripts/build_packs.py`, and commit the
+  generated file under `src/tracebait/data/packs/`. Never edit a pack by hand.
 - Add the source, licence and upstream commit to [NOTICE](NOTICE).
 - Remove mirrored copies of target values (for example the rendered `Message` field in
   OTRF records, or response echoes in CloudTrail). The twin builder refuses incidents

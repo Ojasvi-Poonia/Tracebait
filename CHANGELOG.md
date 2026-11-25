@@ -24,3 +24,12 @@ the data formats and the grade.
 - CI on Python 3.11 to 3.15, a release workflow using PyPI Trusted Publishing, and
   Dependabot.
 - `tracebait --version`.
+- Incident packs: a validated pack format that records each source's archive URL,
+  SHA-256, upstream commit and licence, with `load_pack`, `builtin_packs`,
+  `load_builtin_pack` and `pack_problems`.
+- First pack, `otrf-credential-access`: two Sysmon incidents from OTRF Security-Datasets
+  (lsass dump via comsvcs.dll, SAM copy via esentutl), rebuilt reproducibly by
+  `scripts/build_packs.py` (`--check` fails if the shipped file is stale).
+- `tracebait.otrf`: reads OTRF JSON Lines and converts Sysmon records to log entries,
+  dropping the rendered `Message`.
+- `targets()` lists every place in an incident a payload can be added to.
