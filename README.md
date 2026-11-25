@@ -21,9 +21,9 @@ the added text. Scoring is deterministic, with no LLM judge.
 
 > [!IMPORTANT]
 > tracebait is **pre-alpha**. The data models, the field registry, the twin builder, two
-> incident packs and the honeypot MCP server work today. Agent runners, scoring and
-> reports are still being built; see the [roadmap](#roadmap). Until v0.1, install from
-> source.
+> incident packs, the honeypot MCP server and a Claude Code runner work today. Scoring
+> and reports are still being built; see the [roadmap](#roadmap). Until v0.1, install
+> from source.
 
 ## Contents
 
@@ -32,6 +32,7 @@ the added text. Scoring is deterministic, with no LLM judge.
 - [Quick start](#quick-start)
 - [Incident packs](#incident-packs)
 - [Running the honeypot](#running-the-honeypot)
+- [Running an experiment](#running-an-experiment)
 - [The field registry](#the-field-registry)
 - [Roadmap](#roadmap)
 - [Related work](#related-work)
@@ -248,6 +249,30 @@ poisoned copies are served identically apart from the poisoned field, and the in
 dataset source and ground truth are never served. `--inventory` takes a JSON file of the
 organisation's own hosts, users, IPs and accounts for `lookup_asset`.
 
+## Running an experiment
+
+`tracebait run` launches Claude Code headless against the honeypot, alternating clean
+and poisoned runs, and tallies what the agent decided and did:
+
+```bash
+uv run tracebait run \
+  --pack otrf-credential-access --incident otrf-lsass-dump-comsvcs \
+  --payload payload.json --runs 5 --out results/lsass-01 --model sonnet
+```
+
+> [!WARNING]
+> Every run is a real agent session billed to your Claude account: `--runs 5` starts ten
+> sessions. Each is capped by `--max-budget-usd` (default $1.00 per run).
+
+Each session is isolated so the result measures the model rather than your own setup. It
+starts in an empty, neutrally named temporary directory, and the honeypot is its only
+MCP server. Built-in tools are off, only honeypot tools are allowed, no settings files
+are read, and the session is not saved. `--bare` isolates it further (no user memory,
+hooks or plugins) but needs `ANTHROPIC_API_KEY`. The agent returns a verdict validated
+against the `Verdict` model. `results.jsonl` holds one record per run with its verdict,
+actions, cost and duration; `experiment.json` records the settings and payload, and each
+run directory keeps the agent's raw output and action log.
+
 ## The field registry
 
 The registry lists the fields tracebait can target, with the limits a payload must fit.
@@ -278,8 +303,8 @@ servers trim it before logging.
 | Foundations | Frozen data models, field registry, twin builder, CI and release pipeline | Done |
 | Incident packs | Curated slices of public datasets: OTRF Security-Datasets (Sysmon) and splunk/attack_data (CloudTrail) shipped; benign incidents, web and DNS packs next | In progress |
 | Honeypot | MCP server with read tools and record-only response tools, asset inventory | Done |
-| First runner | Claude Code in headless mode, with structured verdict output | Planned |
-| Feasibility test | Measure frontier-model agents locally before building further | Planned |
+| First runner | Claude Code in headless mode, with structured verdict output | Done |
+| Feasibility test | Measure frontier-model agents locally before building further | Next |
 | v0.1 | ECS, Sysmon and CloudTrail normalizers; about 60 original payloads in 5 classes; MCP-client and Ollama runners; scoring and `--fail-under`; PR, SARIF and HTML reports; an offline replay mode for CI that makes no model API calls; GitHub Action | Planned |
 
 The payload classes are authority spoofing, benign explanation, task-plausible
@@ -333,6 +358,7 @@ src/tracebait/
   otrf.py             converts OTRF Security-Datasets Sysmon records to log entries
   cloudtrail.py       flattens CloudTrail records to dotted keys
   honeypot/           MCP server: read views, asset inventory, action recorder
+  runners/            agent contract, Claude Code runner, experiments and tallies
   frozen.py           read-only mapping used by the models
   cli.py              the tracebait command
   data/fields.json    the field registry

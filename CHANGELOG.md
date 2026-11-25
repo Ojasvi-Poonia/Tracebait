@@ -48,3 +48,8 @@ the data formats and the grade.
   ground truth or payload, and presents itself as an ordinary SOC console.
 - Asset inventory model for `lookup_asset` and, later, for scoring collateral actions.
 - Dependency on the MCP Python SDK (`mcp` 2.x).
+- `tracebait run`: runs Claude Code headless (`claude -p`) on the clean and poisoned
+  copies of an incident, alternating variants, with a structured verdict schema, a
+  per-run budget cap and a tally of dispositions, actions and cost. Sessions run in
+  neutral temporary directories with the honeypot as their only tool source.
+- `python -m tracebait`.
