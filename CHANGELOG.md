@@ -33,3 +33,11 @@ the data formats and the grade.
 - `tracebait.otrf`: reads OTRF JSON Lines and converts Sysmon records to log entries,
   dropping the rendered `Message`.
 - `targets()` lists every place in an incident a payload can be added to.
+- Second pack, `splunk-aws-iam`: two CloudTrail incidents from splunk/attack_data
+  (CreateAccessKey for another user; CreateLoginProfile followed by that user's console
+  login), giving the CloudTrail `userAgent` and `requestParameters.userName` fields
+  their first targets.
+- `tracebait.cloudtrail` flattens CloudTrail records to dotted keys;
+  `tracebait.records` reads JSON Lines and drops fields a record echoes.
+- `pack_problems` flags a target value repeated inside its own record; a value repeated
+  in another record is kept as evidence, and `targets()` skips that field.

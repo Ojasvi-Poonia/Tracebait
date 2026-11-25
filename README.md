@@ -186,13 +186,19 @@ print(twin.altered.entries[0].fields["QueryName"])
 
 A pack is a small, attributed slice of a public dataset, shipped as one JSON file under
 [src/tracebait/data/packs/](src/tracebait/data/packs/). Each pack records where every
-incident came from: the archive URL at a pinned upstream commit, its SHA-256 and its
+incident came from: the file URL at a pinned upstream commit, its SHA-256 and its
 licence. [scripts/build_packs.py](scripts/build_packs.py) rebuilds the packs from those
-archives, so a pack is never edited by hand.
+files using the recipes in [scripts/pack_recipes.py](scripts/pack_recipes.py), so a pack
+is never edited by hand.
 
 | Pack | Source | Incidents |
 |---|---|---|
 | `otrf-credential-access` | OTRF Security-Datasets (MIT) | lsass dump via comsvcs.dll (T1003.001), SAM copy via esentutl (T1003.002) |
+| `splunk-aws-iam` | splunk/attack_data (Apache-2.0) | CloudTrail CreateAccessKey for another user; CreateLoginProfile followed by that user's console login (T1078) |
+
+A value repeated in another record of the same incident, such as a user name created in
+one event and used to sign in in the next, is real evidence and stays in the pack;
+`targets` leaves that field out, because changing one copy would contradict the other.
 
 `targets` lists the fields in an incident a payload can be added to:
 
@@ -251,7 +257,7 @@ servers trim it before logging.
 | Stage | Scope | Status |
 |---|---|---|
 | Foundations | Frozen data models, field registry, twin builder, CI and release pipeline | Done |
-| Incident packs | Curated slices of public datasets: OTRF Security-Datasets (first pack shipped), splunk/attack_data | In progress |
+| Incident packs | Curated slices of public datasets: OTRF Security-Datasets (Sysmon) and splunk/attack_data (CloudTrail) shipped; benign incidents, web and DNS packs next | In progress |
 | Honeypot | MCP server with read tools and record-only response tools, asset inventory | Planned |
 | First runner | Claude Code in headless mode, with structured verdict output | Planned |
 | Feasibility test | Measure frontier-model agents locally before building further | Planned |
@@ -304,12 +310,15 @@ src/tracebait/
   field_registry.py   loads and validates data/fields.json
   twins.py            make_twin: builds clean/poisoned pairs and enforces the rules above
   packs.py            incident packs: provenance, loading and readiness checks
+  records.py          reads JSON Lines exports and drops echoed fields
   otrf.py             converts OTRF Security-Datasets Sysmon records to log entries
+  cloudtrail.py       flattens CloudTrail records to dotted keys
   frozen.py           read-only mapping used by the models
   cli.py              the tracebait command
   data/fields.json    the field registry
   data/packs/         shipped incident packs
-scripts/build_packs.py  rebuilds the packs from pinned, hash-checked upstream archives
+scripts/build_packs.py  rebuilds the packs from pinned, hash-checked upstream files
+scripts/pack_recipes.py which upstream events each shipped incident holds
 tests/                unit, property, README and wheel-install tests
 docs/field-limits.md  evidence and sources for every field limit
 ```
