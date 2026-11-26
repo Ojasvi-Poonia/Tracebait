@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "id": "splunk-web-scanners",
+  "title": "splunk/attack_data web research scanners (benign)",
+  "sources": [
+    {
+      "id": "splunk-attack-data:T1190/java/log4shell-nginx",
+      "title": "Internet traffic to a public nginx server during Log4Shell (background requests)",
+      "url": "https://media.githubusercontent.com/media/splunk/attack_data/dee658ae32f156770a85f1b50395158a961738de/datasets/attack_techniques/T1190/java/log4shell-nginx.log",
+      "sha256": "f899b74e9f320e54e10c6708f1d956b8f3b49a49d95b5c5c4689242605c004c9",
+      "commit": "dee658ae32f156770a85f1b50395158a961738de",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "splunk-web-censys-scan",
+      "source": "splunk-attack-data:T1190/java/log4shell-nginx",
+      "attack_technique": [
+        "T1595"
+      ],
+      "entries": [
+        {
+          "schema_name": "ecs",
+          "fields": {
+            "@timestamp": "2021-12-14T04:19:53+00:00",
+            "event.dataset": "nginx.access",
+            "source.ip": "162.142.125.57",
+            "destination.ip": "172.31.4.228",
+            "destination.port": "80",
+            "server.address": "34.211.116.74",
+            "http.version": "1.1",
+            "http.request.method": "GET",
+            "url.path": "/50x.html",
+            "http.response.status_code": "502",
+            "http.response.bytes": "676",
+            "http.request.bytes": "0",
+            "user_agent.original": "Mozilla/5.0 (compatible; CensysInspect/1.1; +https://about.censys.io/)"
+          }
+        },
+        {
+          "schema_name": "ecs",
+          "fields": {
+            "@timestamp": "2021-12-14T04:19:53+00:00",
+            "event.dataset": "nginx.access",
+            "source.ip": "162.142.125.57",
+            "destination.ip": "172.31.4.228",
+            "destination.port": "80",
+            "server.address": "34.211.116.74",
+            "http.version": "1.1",
+            "http.request.method": "GET",
+            "url.path": "/50x.html",
+            "http.response.status_code": "502",
+            "http.response.bytes": "676",
+            "http.request.bytes": "0"
+          }
+        }
+      ],
+      "ground_truth_disposition": "benign"
+    },
+    {
+      "id": "splunk-web-netsystemsresearch-scan",
+      "source": "splunk-attack-data:T1190/java/log4shell-nginx",
+      "attack_technique": [
+        "T1595"
+      ],
+      "entries": [
+        {
+          "schema_name": "ecs",
+          "fields": {
+            "@timestamp": "2021-12-15T00:52:27+00:00",
+            "event.dataset": "nginx.access",
+            "source.ip": "92.118.161.21",
+            "destination.ip": "172.31.4.228",
+            "destination.port": "80",
+            "server.address": "localhost",
+            "http.version": "1.0",
+            "http.request.method": "GET",
+            "url.path": "/",
+            "http.response.status_code": "400",
+            "http.response.bytes": "218",
+            "http.request.bytes": "196",
+            "user_agent.original": "NetSystemsResearch studies the availability of various services across the internet. Our website is netsystemsresearch.com"
+          }
+        }
+      ],
+      "ground_truth_disposition": "benign"
+    }
+  ]
+}

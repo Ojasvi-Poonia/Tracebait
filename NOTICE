@@ -15,7 +15,7 @@ security datasets. Each pack also records its sources' URLs and SHA-256 digests,
 scripts/build_packs.py rebuilds it from them. Selected records are kept verbatim except
 for these changes: OTRF records lose their rendered Message field and have numbers
 written as strings; CloudTrail records are flattened to dotted keys with non-string
-values written as JSON text; and fields that echo a record's own values, listed in
+values written as JSON text; nginx access-log lines are mapped to ECS; and fields that echo a record's own values, listed in
 scripts/pack_recipes.py, are removed.
 
 otrf-credential-access.json
@@ -54,6 +54,14 @@ splunk-aws-iam.json
             attack_techniques/T1078/aws_createloginprofile/aws_cloudtrail_events.json
   Licence:  Apache License 2.0, the same licence as tracebait (see LICENSE). The upstream
             repository has no NOTICE file. Changes are described above.
+
+splunk-web-scanners.json
+  Source:   splunk/attack_data, https://github.com/splunk/attack_data
+  Commit:   dee658ae32f156770a85f1b50395158a961738de
+  Datasets: attack_techniques/T1190/java/log4shell-nginx.log (background requests only)
+  Licence:  Apache License 2.0, as above. nginx key="value" lines are mapped to ECS
+            field names; nginx "-" placeholders and the src field (a copy of src_ip)
+            are removed.
 
 Field limits in src/tracebait/data/fields.json are facts collected from public
 documentation; each entry lists its sources.

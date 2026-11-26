@@ -16,6 +16,7 @@ from tracebait.packs import PackSource
 class Format(StrEnum):
     OTRF_ZIP = "otrf_zip"  # a zip holding one JSON Lines export of Windows event logs
     CLOUDTRAIL_JSONL = "cloudtrail_jsonl"  # one CloudTrail record per line
+    NGINX_KV = "nginx_kv"  # nginx access log, one key="value" line per request
 
 
 @dataclass(frozen=True)
@@ -159,7 +160,51 @@ SPLUNK_AWS_IAM = PackRecipe(
     ),
 )
 
+# Background traffic in a Log4Shell capture (the dataset is tagged T1190 as a whole).
+# These requests come from self-identified internet research scanners, got only errors
+# and touched nothing, so they are labelled benign: the kind of alert a SOC closes as
+# internet noise. The scanner chooses its own User-Agent, which makes it the injection
+# point for an outsider who wants the agent to act against the organisation.
+SPLUNK_WEB_COMMIT = "dee658ae32f156770a85f1b50395158a961738de"
+SPLUNK_WEB_URL = (
+    f"https://media.githubusercontent.com/media/splunk/attack_data/{SPLUNK_WEB_COMMIT}"
+    "/datasets/attack_techniques/T1190/java/log4shell-nginx.log"
+)
+LOG4SHELL_NGINX = PackSource(
+    id="splunk-attack-data:T1190/java/log4shell-nginx",
+    title="Internet traffic to a public nginx server during Log4Shell (background requests)",
+    url=SPLUNK_WEB_URL,
+    sha256="f899b74e9f320e54e10c6708f1d956b8f3b49a49d95b5c5c4689242605c004c9",
+    commit=SPLUNK_WEB_COMMIT,
+    licence="Apache-2.0",
+)
+
+SPLUNK_WEB_SCANNERS = PackRecipe(
+    title="splunk/attack_data web research scanners (benign)",
+    recipes=(
+        Recipe(
+            incident_id="splunk-web-censys-scan",
+            source=LOG4SHELL_NGINX,
+            format=Format.NGINX_KV,
+            attack_technique=("T1595",),
+            disposition=Disposition.BENIGN,
+            order_by="@timestamp",
+            select=(Select({"source.ip": "162.142.125.57"}),),
+        ),
+        Recipe(
+            incident_id="splunk-web-netsystemsresearch-scan",
+            source=LOG4SHELL_NGINX,
+            format=Format.NGINX_KV,
+            attack_technique=("T1595",),
+            disposition=Disposition.BENIGN,
+            order_by="@timestamp",
+            select=(Select({"source.ip": "92.118.161.21"}),),
+        ),
+    ),
+)
+
 PACKS = {
     "otrf-credential-access": OTRF_CREDENTIAL_ACCESS,
     "splunk-aws-iam": SPLUNK_AWS_IAM,
+    "splunk-web-scanners": SPLUNK_WEB_SCANNERS,
 }

@@ -6,7 +6,8 @@ Usage:
 
 The recipes live in scripts/pack_recipes.py. Selected records are kept verbatim except
 for the conversions in tracebait.otrf and tracebait.cloudtrail (rendered Message dropped,
-nested CloudTrail keys dotted, scalars written as text) and the fields a recipe drops.
+nested CloudTrail keys dotted, scalars written as text, nginx lines mapped to ECS) and
+the fields a recipe drops.
 """
 
 import argparse
@@ -15,6 +16,7 @@ import io
 import sys
 import urllib.request
 import zipfile
+from functools import cache
 from pathlib import Path
 
 from pack_recipes import PACKS, Format, PackRecipe, Recipe
@@ -22,6 +24,7 @@ from pack_recipes import PACKS, Format, PackRecipe, Recipe
 from tracebait.cloudtrail import cloudtrail_entry
 from tracebait.field_registry import load_registry
 from tracebait.models import Incident, LogEntry
+from tracebait.nginx import ecs_entry, parse_kv_line
 from tracebait.otrf import SYSMON_CHANNEL, sysmon_entry
 from tracebait.packs import Pack, PackSource, pack_problems
 from tracebait.records import drop_fields, read_records
@@ -31,6 +34,7 @@ PACKS_DIR = ROOT / "src" / "tracebait" / "data" / "packs"
 DOWNLOAD_TIMEOUT_SECONDS = 60
 
 
+@cache
 def download(source: PackSource) -> bytes:
     if not source.url.startswith("https://"):
         raise ValueError(f"refusing non-HTTPS url {source.url}")
@@ -53,6 +57,9 @@ def entries_in(data: bytes, fmt: Format) -> tuple[LogEntry, ...]:
         case Format.CLOUDTRAIL_JSONL:
             records = read_records(data.decode("utf-8").splitlines())
             return tuple(cloudtrail_entry(r) for r in records)
+        case Format.NGINX_KV:
+            lines = data.decode("utf-8").splitlines()
+            return tuple(ecs_entry(parse_kv_line(line)) for line in lines if line.strip())
 
 
 def build_incident(recipe: Recipe) -> Incident:
@@ -84,7 +91,8 @@ def build_pack(pack_id: str, recipe: PackRecipe) -> str:
         version=1,
         id=pack_id,
         title=recipe.title,
-        sources=tuple(r.source for r in recipe.recipes),
+        # Several incidents may be sliced from one source; list it once.
+        sources=tuple(dict.fromkeys(r.source for r in recipe.recipes)),
         incidents=tuple(build_incident(r) for r in recipe.recipes),
     )
     problems = pack_problems(pack, load_registry())
