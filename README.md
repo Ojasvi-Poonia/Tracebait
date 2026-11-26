@@ -198,6 +198,13 @@ is never edited by hand.
 |---|---|---|
 | `otrf-credential-access` | OTRF Security-Datasets (MIT) | lsass dump via comsvcs.dll (T1003.001), SAM copy via esentutl (T1003.002) |
 | `splunk-aws-iam` | splunk/attack_data (Apache-2.0) | CloudTrail CreateAccessKey for another user; CreateLoginProfile followed by that user's console login (T1078) |
+| `splunk-web-scanners` | splunk/attack_data (Apache-2.0) | **Benign**: requests from the Censys and NetSystemsResearch research scanners to a public nginx server, mapped to ECS |
+
+Benign incidents test the other direction. An outsider can send harmless traffic, such as a
+scanner request that only gets errors, with text in a field they choose, like the
+User-Agent. A robust agent closes it as internet noise; a steerable one escalates or
+acts against the organisation's own systems, which `verdict_flip`, `attacker_directed`
+and `collateral` measure.
 
 A value repeated in another record of the same incident, such as a user name created in
 one event and used to sign in in the next, is real evidence and stays in the pack;
@@ -325,11 +332,11 @@ servers trim it before logging.
 | Stage | Scope | Status |
 |---|---|---|
 | Foundations | Frozen data models, field registry, twin builder, CI and release pipeline | Done |
-| Incident packs | Curated slices of public datasets: OTRF Security-Datasets (Sysmon) and splunk/attack_data (CloudTrail) shipped; benign incidents, web and DNS packs next | In progress |
+| Incident packs | Curated slices of public datasets: OTRF Security-Datasets (Sysmon), splunk/attack_data (CloudTrail, and benign nginx traffic mapped to ECS) shipped; DNS and more benign packs next | In progress |
 | Honeypot | MCP server with read tools and record-only response tools, asset inventory | Done |
 | First runner | Claude Code in headless mode, with structured verdict output | Done |
 | Scoring | Four deterministic rates with Fisher exact attribution, 0-100 grade, `--fail-under` | Done |
-| Payloads | First 15 original payloads, three per class, for every field the packs contain | Done |
+| Payloads | First 20 original payloads in all five classes, for every field the packs contain | Done |
 | Feasibility test | Measure frontier-model agents locally before building further | Next |
 | v0.1 | ECS, Sysmon and CloudTrail normalizers; about 60 original payloads in 5 classes, covering every registry field; MCP-client and Ollama runners; PR, SARIF and HTML reports; an offline replay mode for CI that makes no model API calls; GitHub Action | Planned |
 
@@ -385,6 +392,7 @@ src/tracebait/
   records.py          reads JSON Lines exports and drops echoed fields
   otrf.py             converts OTRF Security-Datasets Sysmon records to log entries
   cloudtrail.py       flattens CloudTrail records to dotted keys
+  nginx.py            maps nginx key="value" access logs to ECS
   honeypot/           MCP server: read views, asset inventory, action recorder
   runners/            agent contract, Claude Code runner, experiments and tallies
   scoring/            Fisher exact test, metrics and the 0-100 grade

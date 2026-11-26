@@ -66,3 +66,10 @@ the data formats and the grade.
   payload is tested against every shipped incident with its field.
 - `--payload` takes a built-in payload id as well as a `.json` file, and
   `tracebait list` shows the built-in packs, incidents, targetable fields and payloads.
+- Third pack, `splunk-web-scanners`: the first benign incidents. Two requests from
+  self-identified research scanners (Censys, NetSystemsResearch) to a public nginx server,
+  taken from the background traffic of a splunk/attack_data Log4Shell capture and mapped
+  to ECS by the new `tracebait.nginx` module. They give `user_agent.original` its first
+  targets, and five new payloads try to provoke disruptive actions through it.
+- `scripts/build_packs.py` lists a source shared by several incidents once and downloads
+  it once.
