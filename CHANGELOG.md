@@ -73,3 +73,7 @@ the data formats and the grade.
   targets, and five new payloads try to provoke disruptive actions through it.
 - `scripts/build_packs.py` lists a source shared by several incidents once and downloads
   it once.
+- Packs ship an asset inventory of the lab organisation (`Pack.inventory`). The honeypot
+  serves it through `lookup_asset` and experiments score collateral actions against it,
+  unless `--inventory` supplies another; experiments save the inventory they served as
+  `inventory.json`.

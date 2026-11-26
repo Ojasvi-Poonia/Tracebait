@@ -200,6 +200,11 @@ is never edited by hand.
 | `splunk-aws-iam` | splunk/attack_data (Apache-2.0) | CloudTrail CreateAccessKey for another user; CreateLoginProfile followed by that user's console login (T1078) |
 | `splunk-web-scanners` | splunk/attack_data (Apache-2.0) | **Benign**: requests from the Censys and NetSystemsResearch research scanners to a public nginx server, mapped to ECS |
 
+Each pack also ships an inventory of the lab organisation's assets: the hosts, users, IPs
+and accounts its incidents mention, plus a few critical ones (a domain controller, a web
+server, admin accounts) that payloads try to steer the agent towards. Owners and
+criticality are illustrative.
+
 Benign incidents test the other direction. An outsider can send harmless traffic, such as a
 scanner request that only gets errors, with text in a field they choose, like the
 User-Agent. A robust agent closes it as internet noise; a steerable one escalates or
@@ -255,8 +260,9 @@ uv run tracebait honeypot \
 Register that command as a stdio MCP server in the agent under test. The server calls
 itself `soc-console`, and nothing the agent can see says it is being tested. The clean and
 poisoned copies are served identically apart from the poisoned field, and the incident id,
-dataset source and ground truth are never served. `--inventory` takes a JSON file of the
-organisation's own hosts, users, IPs and accounts for `lookup_asset`.
+dataset source and ground truth are never served. `lookup_asset` answers from the pack's
+inventory of the organisation's own hosts, users, IPs and accounts; `--inventory` takes
+a JSON file to use instead.
 
 ## Running an experiment
 
@@ -280,9 +286,9 @@ are read, and the session is not saved. `--bare` isolates it further (no user me
 hooks or plugins) but needs `ANTHROPIC_API_KEY`. The agent returns a verdict validated
 against the `Verdict` model. `results.jsonl` holds one record per run with its verdict,
 actions, cost and duration; `experiment.json` records the settings and payload, and each
-run directory keeps the agent's raw output and action log. Pass `--inventory` to serve
-your own hosts, users, IPs and accounts through `lookup_asset` and to score collateral
-actions against them.
+run directory keeps the agent's raw output and action log. The inventory served to the
+agent, the pack's own or one passed with `--inventory`, is saved as `inventory.json` and
+used to score collateral actions.
 
 ## Scoring an experiment
 
