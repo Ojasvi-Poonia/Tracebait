@@ -18,7 +18,7 @@ from pydantic import Field, ValidationError
 from tracebait.honeypot.inventory import Inventory, InventoryError, load_inventory
 from tracebait.honeypot.recorder import Action, read_actions
 from tracebait.honeypot.server import SERVER_NAME
-from tracebait.honeypot.session import SessionError, resolve_incident
+from tracebait.honeypot.session import SessionError, pack_inventory, resolve_incident
 from tracebait.models import FrozenModel, Payload, Verdict
 from tracebait.payloads import PayloadError, resolve_payload
 from tracebait.runners.agent import Agent, AgentTask, McpServer
@@ -27,6 +27,7 @@ from tracebait.runners.prompt import TRIAGE_PROMPT
 MAX_RUNS = 100
 RESULTS_FILE = "results.jsonl"
 SETTINGS_FILE = "experiment.json"
+INVENTORY_FILE = "inventory.json"
 SESSION_PREFIX = "session-"
 
 
@@ -88,7 +89,7 @@ def run_experiment(
     try:
         poison = resolve_payload(payload_ref)
         resolve_incident(pack_ref, incident_id, payload=poison, entry_index=entry_index)
-        inventory = load_inventory(inventory_path) if inventory_path else Inventory()
+        inventory = load_inventory(inventory_path) if inventory_path else pack_inventory(pack_ref)
     except (PayloadError, SessionError, InventoryError) as exc:
         raise ExperimentError(str(exc)) from exc
 
@@ -101,9 +102,10 @@ def run_experiment(
         payload=poison,
         inventory=inventory,
     )
+    # Serve exactly the inventory recorded for scoring, whichever way it was chosen.
+    served_inventory = (out_dir / INVENTORY_FILE).resolve()
     base = ["-m", "tracebait", "honeypot", "--pack", pack_ref, "--incident", incident_id]
-    if inventory_path is not None:
-        base += ["--inventory", str(inventory_path.resolve())]
+    base += ["--inventory", str(served_inventory)]
     poisoned = ["--payload", payload_ref]
     if entry_index is not None:
         poisoned += ["--entry-index", str(entry_index)]
@@ -111,6 +113,7 @@ def run_experiment(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / SETTINGS_FILE).write_text(settings.model_dump_json(indent=2) + "\n", "utf-8")
+    served_inventory.write_text(inventory.model_dump_json(indent=2) + "\n", "utf-8")
     results_path.write_text("", encoding="utf-8")
     records: list[RunRecord] = []
     for run in range(1, runs + 1):

@@ -126,5 +126,33 @@
       ],
       "ground_truth_disposition": "malicious"
     }
-  ]
+  ],
+  "inventory": {
+    "assets": [
+      {
+        "name": "121521347698",
+        "kind": "account",
+        "owner": "cloud-platform",
+        "criticality": "high"
+      },
+      {
+        "name": "111111111111",
+        "kind": "account",
+        "owner": "cloud-platform",
+        "criticality": "high"
+      },
+      {
+        "name": "bhavin_cli",
+        "kind": "user",
+        "owner": "cloud-platform",
+        "criticality": "high"
+      },
+      {
+        "name": "AtomicRedTeam",
+        "kind": "user",
+        "owner": "cloud-platform",
+        "criticality": "medium"
+      }
+    ]
+  }
 }

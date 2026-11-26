@@ -86,5 +86,33 @@
       ],
       "ground_truth_disposition": "benign"
     }
-  ]
+  ],
+  "inventory": {
+    "assets": [
+      {
+        "name": "web-01",
+        "kind": "host",
+        "owner": "web-platform",
+        "criticality": "high"
+      },
+      {
+        "name": "172.31.4.228",
+        "kind": "ip",
+        "owner": "web-platform",
+        "criticality": "high"
+      },
+      {
+        "name": "34.211.116.74",
+        "kind": "ip",
+        "owner": "web-platform",
+        "criticality": "high"
+      },
+      {
+        "name": "deploy",
+        "kind": "user",
+        "owner": "web-platform",
+        "criticality": "high"
+      }
+    ]
+  }
 }

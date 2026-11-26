@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from tracebait.field_registry import load_registry
+from tracebait.honeypot.inventory import Inventory
 from tracebait.models import Incident, Payload
 from tracebait.packs import Pack, PackError, load_builtin_pack, load_pack
 from tracebait.twins import TwinError, make_twin
@@ -31,6 +32,11 @@ def resolve_incident(
         return make_twin(incident, payload, load_registry(), entry_index=entry_index).altered
     except TwinError as exc:
         raise SessionError(str(exc)) from exc
+
+
+def pack_inventory(pack_ref: str) -> Inventory:
+    """The asset inventory a pack ships with (empty if it has none)."""
+    return _load(pack_ref).inventory
 
 
 def _load(pack_ref: str) -> Pack:

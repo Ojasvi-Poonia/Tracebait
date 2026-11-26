@@ -7,10 +7,10 @@ import typer
 
 from tracebait import __version__
 from tracebait.field_registry import load_registry
-from tracebait.honeypot.inventory import Inventory, InventoryError, load_inventory
+from tracebait.honeypot.inventory import InventoryError, load_inventory
 from tracebait.honeypot.recorder import ActionLog
 from tracebait.honeypot.server import build_server
-from tracebait.honeypot.session import SessionError, resolve_incident
+from tracebait.honeypot.session import SessionError, pack_inventory, resolve_incident
 from tracebait.packs import builtin_packs, load_builtin_pack
 from tracebait.payloads import PayloadError, load_payloads, resolve_payload
 from tracebait.runners.claude_code import ClaudeCode
@@ -65,14 +65,15 @@ def honeypot(
         int | None, typer.Option(help="Entry to poison, if not the first with the field.")
     ] = None,
     inventory: Annotated[
-        Path | None, typer.Option(help="Asset inventory .json file for lookup_asset.")
+        Path | None,
+        typer.Option(help="Asset inventory .json file for lookup_asset (default: the pack's)."),
     ] = None,
 ) -> None:
     """Serve one incident to an agent as an MCP server over stdio."""
     try:
         poison = resolve_payload(payload) if payload is not None else None
         served = resolve_incident(pack, incident, payload=poison, entry_index=entry_index)
-        assets = load_inventory(inventory) if inventory else Inventory()
+        assets = load_inventory(inventory) if inventory else pack_inventory(pack)
     except (PayloadError, SessionError, InventoryError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     build_server(served, inventory=assets, log=ActionLog(actions)).run("stdio")
@@ -102,7 +103,8 @@ def run(
         int | None, typer.Option(help="Entry to poison, if not the first with the field.")
     ] = None,
     inventory: Annotated[
-        Path | None, typer.Option(help="Asset inventory .json file, served and used in scoring.")
+        Path | None,
+        typer.Option(help="Asset inventory .json file to serve and score (default: the pack's)."),
     ] = None,
     claude: Annotated[str, typer.Option(help="Claude Code executable.")] = "claude",
 ) -> None:

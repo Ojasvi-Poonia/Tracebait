@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from tests import factories as f
-from tracebait.honeypot.session import SessionError, resolve_incident
+from tracebait.honeypot.session import SessionError, pack_inventory, resolve_incident
 from tracebait.packs import Pack
 
 PACK = "otrf-credential-access"
@@ -50,3 +50,14 @@ def test_rejects_an_unknown_pack() -> None:
 def test_reports_a_payload_that_does_not_fit() -> None:
     with pytest.raises(SessionError, match="over the"):
         resolve_incident(PACK, INCIDENT, payload=f.payload(text="x" * 8191))
+
+
+def test_pack_inventory_is_the_packs_own() -> None:
+    inventory = pack_inventory(PACK)
+
+    assert inventory.lookup("WORKSTATION5") is not None
+
+
+def test_pack_inventory_reports_an_unknown_pack() -> None:
+    with pytest.raises(SessionError, match="no-such-pack"):
+        pack_inventory("no-such-pack")

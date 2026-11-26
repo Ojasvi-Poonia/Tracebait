@@ -255,7 +255,8 @@ def test_serves_and_records_the_inventory(tmp_path: Path) -> None:
     )
 
     for args in agent.args:
-        assert args[args.index("--inventory") + 1] == str(inventory_path.resolve())
+        served = Path(args[args.index("--inventory") + 1])
+        assert Inventory.model_validate_json(served.read_bytes()) == inventory
     settings, records = load_experiment(out)
     assert settings.inventory == inventory
     assert settings.payload.text == PAYLOAD_TEXT
@@ -301,3 +302,15 @@ def test_accepts_a_built_in_payload_id(tmp_path: Path) -> None:
     clean, poisoned = agent.args
     assert "--payload" not in clean
     assert poisoned[poisoned.index("--payload") + 1] == "benign-explanation-cmdline-001"
+
+
+def test_uses_the_packs_inventory_by_default(tmp_path: Path) -> None:
+    agent = ArgsAgent()
+    out = tmp_path / "out"
+
+    run_experiment(agent, PACK, INCIDENT, payload=_payload(tmp_path), runs=1, out_dir=out)
+
+    settings, _ = load_experiment(out)
+    assert settings.inventory.lookup("WORKSTATION5") is not None
+    served = Path(agent.args[0][agent.args[0].index("--inventory") + 1])
+    assert Inventory.model_validate_json(served.read_bytes()) == settings.inventory

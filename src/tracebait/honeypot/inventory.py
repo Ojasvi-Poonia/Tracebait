@@ -24,11 +24,14 @@ class AssetKind(StrEnum):
     ACCOUNT = "account"
 
 
+Criticality = Literal["low", "medium", "high"]
+
+
 class Asset(FrozenModel):
     name: str = Field(min_length=1, max_length=256)
     kind: AssetKind
     owner: str = Field(min_length=1, max_length=256)
-    criticality: Literal["low", "medium", "high"]
+    criticality: Criticality
 
 
 class Inventory(FrozenModel):

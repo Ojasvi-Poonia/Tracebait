@@ -94,6 +94,7 @@ def build_pack(pack_id: str, recipe: PackRecipe) -> str:
         # Several incidents may be sliced from one source; list it once.
         sources=tuple(dict.fromkeys(r.source for r in recipe.recipes)),
         incidents=tuple(build_incident(r) for r in recipe.recipes),
+        inventory=recipe.inventory,
     )
     problems = pack_problems(pack, load_registry())
     if problems:

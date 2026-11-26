@@ -12,6 +12,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, StringConstraints, ValidationError, model_validator
 
 from tracebait.field_registry import FieldRegistry
+from tracebait.honeypot.inventory import Inventory
 from tracebait.models import Change, FrozenModel, HttpsUrl, Incident, LogEntry, Slug
 from tracebait.twins import find_mirror, targets
 
@@ -43,6 +44,9 @@ class Pack(FrozenModel):
     title: str = Field(min_length=1, max_length=256)
     sources: tuple[PackSource, ...] = Field(min_length=1)
     incidents: tuple[Incident, ...] = Field(min_length=1)
+    # The organisation's own assets, served by lookup_asset and used to score collateral
+    # actions, unless an experiment supplies its own inventory.
+    inventory: Inventory = Inventory()
 
     @model_validator(mode="after")
     def _ids_and_sources_are_consistent(self) -> Self:

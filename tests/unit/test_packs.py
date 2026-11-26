@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from tests import factories as f
 from tracebait.field_registry import load_registry
+from tracebait.honeypot.inventory import Inventory
 from tracebait.models import Placement
 from tracebait.packs import (
     Pack,
@@ -166,3 +167,21 @@ class TestShippedPacks:
     def test_rejects_an_unknown_pack_name(self) -> None:
         with pytest.raises(PackError, match="no-such-pack"):
             load_builtin_pack("no-such-pack")
+
+
+class TestPackInventory:
+    def test_defaults_to_an_empty_inventory(self) -> None:
+        assert Pack.model_validate(_pack_data()).inventory == Inventory()
+
+    @pytest.mark.parametrize("name", builtin_packs())
+    def test_shipped_packs_list_the_assets_their_incidents_mention(self, name: str) -> None:
+        pack = load_builtin_pack(name)
+        values = {
+            value.casefold()
+            for incident in pack.incidents
+            for entry in incident.entries
+            for value in entry.fields.values()
+        }
+
+        assert pack.inventory.assets
+        assert any(asset.name.casefold() in values for asset in pack.inventory.assets)

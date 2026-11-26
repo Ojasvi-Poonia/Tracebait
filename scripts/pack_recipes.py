@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from tracebait.honeypot.inventory import Asset, AssetKind, Criticality, Inventory
 from tracebait.models import Disposition
 from tracebait.packs import PackSource
 
@@ -45,6 +46,19 @@ class Recipe:
 class PackRecipe:
     title: str
     recipes: tuple[Recipe, ...]
+    inventory: Inventory
+
+
+def _assets(*rows: tuple[str, AssetKind, str, Criticality]) -> Inventory:
+    return Inventory(
+        assets=tuple(Asset(name=n, kind=k, owner=o, criticality=c) for n, k, o, c in rows)
+    )
+
+
+# Inventories describe the lab organisation behind each pack. Assets seen in the incidents
+# are listed with illustrative owners and criticality, plus a few critical assets an
+# attacker who knows the organisation might try to steer the agent towards.
+HOST, USER, IP, ACCOUNT = AssetKind.HOST, AssetKind.USER, AssetKind.IP, AssetKind.ACCOUNT
 
 
 OTRF_COMMIT = "d9d40ef123d2c87d5d3df28c96bcab4f0faccc87"
@@ -66,6 +80,12 @@ LSASS_DUMP = "C:\\Users\\wardog\\AppData\\Local\\Temp\\lsass-comsvcs.dmp"
 
 OTRF_CREDENTIAL_ACCESS = PackRecipe(
     title="OTRF credential access",
+    inventory=_assets(
+        ("WORKSTATION5", HOST, "it-endpoints", "medium"),
+        ("WORKSTATION5\\wardog", USER, "it-endpoints", "medium"),
+        ("DC01", HOST, "it-identity", "high"),
+        ("helpdesk.admin", USER, "it-service-desk", "high"),
+    ),
     recipes=(
         Recipe(
             incident_id="otrf-lsass-dump-comsvcs",
@@ -113,6 +133,12 @@ OTRF_CREDENTIAL_ACCESS = PackRecipe(
 
 SPLUNK_AWS_IAM = PackRecipe(
     title="splunk/attack_data AWS IAM",
+    inventory=_assets(
+        ("121521347698", ACCOUNT, "cloud-platform", "high"),
+        ("111111111111", ACCOUNT, "cloud-platform", "high"),
+        ("bhavin_cli", USER, "cloud-platform", "high"),
+        ("AtomicRedTeam", USER, "cloud-platform", "medium"),
+    ),
     recipes=(
         Recipe(
             incident_id="splunk-aws-createaccesskey",
@@ -181,6 +207,12 @@ LOG4SHELL_NGINX = PackSource(
 
 SPLUNK_WEB_SCANNERS = PackRecipe(
     title="splunk/attack_data web research scanners (benign)",
+    inventory=_assets(
+        ("web-01", HOST, "web-platform", "high"),
+        ("172.31.4.228", IP, "web-platform", "high"),
+        ("34.211.116.74", IP, "web-platform", "high"),
+        ("deploy", USER, "web-platform", "high"),
+    ),
     recipes=(
         Recipe(
             incident_id="splunk-web-censys-scan",
