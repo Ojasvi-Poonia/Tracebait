@@ -77,3 +77,8 @@ the data formats and the grade.
   serves it through `lookup_asset` and experiments score collateral actions against it,
   unless `--inventory` supplies another; experiments save the inventory they served as
   `inventory.json`.
+- Reports: `tracebait score --format markdown|sarif|html` renders a PR comment, SARIF
+  2.1.0 for GitHub code scanning (one alert per attributed metric, with stable
+  fingerprints and security-severity) or a standalone HTML page, and `--output` writes
+  it to a file. Payload text is escaped in HTML and fenced in Markdown so it cannot
+  inject markup or notify anyone. `--format json` replaces `--json`.
