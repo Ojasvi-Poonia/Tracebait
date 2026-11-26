@@ -60,3 +60,9 @@ the data formats and the grade.
 - `tracebait run --inventory` serves an asset inventory and records it for scoring.
   `experiment.json` is now a validated model, and pack file paths are made absolute so
   the honeypot finds them from the agent's working directory.
+- First payload corpus (`data/payloads.json`): 15 original payloads, three in each of
+  the five classes, for the command-line, CloudTrail user-agent and IAM user-name fields
+  the shipped packs contain, tagged with MITRE ATLAS and OWASP agentic-AI ids. Every
+  payload is tested against every shipped incident with its field.
+- `--payload` takes a built-in payload id as well as a `.json` file, and
+  `tracebait list` shows the built-in packs, incidents, targetable fields and payloads.

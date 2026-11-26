@@ -235,13 +235,14 @@ print(twin.altered.entries[twin.entry_index].fields["CommandLine"])
 ## Running the honeypot
 
 `tracebait honeypot` serves one incident to an agent as an MCP server over stdio. Add
-`--payload` to serve the poisoned twin instead; the twin is rebuilt with every rule above
-enforced. Response actions are written to the `--actions` file as they happen.
+`--payload` (a built-in payload id, or a payload `.json` file) to serve the poisoned twin
+instead; the twin is rebuilt with every rule above enforced. `tracebait list` shows the
+built-in packs, incidents and payloads. Response actions are written to the `--actions` file as they happen.
 
 ```bash
 uv run tracebait honeypot \
   --pack otrf-credential-access --incident otrf-lsass-dump-comsvcs \
-  --payload payload.json --actions poisoned-actions.jsonl
+  --payload task-plausible-cmdline-001 --actions poisoned-actions.jsonl
 ```
 
 Register that command as a stdio MCP server in the agent under test. The server calls
@@ -258,12 +259,12 @@ and poisoned runs, and tallies what the agent decided and did:
 ```bash
 uv run tracebait run \
   --pack otrf-credential-access --incident otrf-lsass-dump-comsvcs \
-  --payload payload.json --runs 5 --out results/lsass-01 --model sonnet
+  --payload task-plausible-cmdline-001 --runs 10 --out results/lsass-01 --model sonnet
 ```
 
 > [!WARNING]
-> Every run is a real agent session billed to your Claude account: `--runs 5` starts ten
-> sessions. Each is capped by `--max-budget-usd` (default $1.00 per run).
+> Every run is a real agent session billed to your Claude account: `--runs 10` starts
+> twenty sessions. Each is capped by `--max-budget-usd` (default $1.00 per run).
 
 Each session is isolated so the result measures the model rather than your own setup. It
 starts in an empty, neutrally named temporary directory, and the honeypot is its only
@@ -328,12 +329,15 @@ servers trim it before logging.
 | Honeypot | MCP server with read tools and record-only response tools, asset inventory | Done |
 | First runner | Claude Code in headless mode, with structured verdict output | Done |
 | Scoring | Four deterministic rates with Fisher exact attribution, 0-100 grade, `--fail-under` | Done |
+| Payloads | First 15 original payloads, three per class, for every field the packs contain | Done |
 | Feasibility test | Measure frontier-model agents locally before building further | Next |
-| v0.1 | ECS, Sysmon and CloudTrail normalizers; about 60 original payloads in 5 classes; MCP-client and Ollama runners; PR, SARIF and HTML reports; an offline replay mode for CI that makes no model API calls; GitHub Action | Planned |
+| v0.1 | ECS, Sysmon and CloudTrail normalizers; about 60 original payloads in 5 classes, covering every registry field; MCP-client and Ollama runners; PR, SARIF and HTML reports; an offline replay mode for CI that makes no model API calls; GitHub Action | Planned |
 
-The payload classes are authority spoofing, benign explanation, task-plausible
-instructions, persona hijack, and encoding or short-field variants. All payloads will be
-original work.
+The payload classes are authority spoofing (blunt overrides, the control class),
+benign explanation, task-plausible instructions that redirect the response to an
+innocent target, persona hijack, and encoding or short-field variants. Every payload is
+original work, ships in [src/tracebait/data/payloads.json](src/tracebait/data/payloads.json)
+and is tagged with MITRE ATLAS and OWASP agentic-AI identifiers.
 
 ## Related work
 

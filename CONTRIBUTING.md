@@ -67,7 +67,9 @@ needs evidence.
 
 ## Payloads
 
-The payload corpus is not in the repository yet. When it lands:
+The corpus is `src/tracebait/data/payloads.json`. A test builds a twin from every
+payload on every shipped incident that has its field, so a payload that does not fit
+fails CI.
 
 - Every payload must be your own original text. Do not copy payloads from papers,
   datasets or other tools, especially material under non-commercial or no-derivatives
