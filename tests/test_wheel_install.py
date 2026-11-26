@@ -47,6 +47,7 @@ def test_wheel_ships_package_data(wheel: Path) -> None:
     assert "tracebait/data/fields.json" in names
     assert "tracebait/data/packs/otrf-credential-access.json" in names
     assert "tracebait/data/packs/splunk-aws-iam.json" in names
+    assert "tracebait/data/payloads.json" in names
     assert "tracebait/py.typed" in names
 
 

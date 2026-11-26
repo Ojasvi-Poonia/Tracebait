@@ -6,10 +6,13 @@ from typing import Annotated
 import typer
 
 from tracebait import __version__
+from tracebait.field_registry import load_registry
 from tracebait.honeypot.inventory import Inventory, InventoryError, load_inventory
 from tracebait.honeypot.recorder import ActionLog
 from tracebait.honeypot.server import build_server
 from tracebait.honeypot.session import SessionError, resolve_incident
+from tracebait.packs import builtin_packs, load_builtin_pack
+from tracebait.payloads import PayloadError, load_payloads, resolve_payload
 from tracebait.runners.claude_code import ClaudeCode
 from tracebait.runners.experiment import (
     ExperimentError,
@@ -19,6 +22,7 @@ from tracebait.runners.experiment import (
     tally,
 )
 from tracebait.scoring.score import Score, score
+from tracebait.twins import targets
 
 app = typer.Typer(
     name="tracebait",
@@ -54,7 +58,8 @@ def honeypot(
         Path, typer.Option(help="JSON Lines file to record response actions to (replaced).")
     ],
     payload: Annotated[
-        Path | None, typer.Option(help="Payload .json file: serve the poisoned twin instead.")
+        str | None,
+        typer.Option(help="Built-in payload id or payload .json file: serve the poisoned twin."),
     ] = None,
     entry_index: Annotated[
         int | None, typer.Option(help="Entry to poison, if not the first with the field.")
@@ -65,9 +70,10 @@ def honeypot(
 ) -> None:
     """Serve one incident to an agent as an MCP server over stdio."""
     try:
-        served = resolve_incident(pack, incident, payload_path=payload, entry_index=entry_index)
+        poison = resolve_payload(payload) if payload is not None else None
+        served = resolve_incident(pack, incident, payload=poison, entry_index=entry_index)
         assets = load_inventory(inventory) if inventory else Inventory()
-    except (SessionError, InventoryError) as exc:
+    except (PayloadError, SessionError, InventoryError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     build_server(served, inventory=assets, log=ActionLog(actions)).run("stdio")
 
@@ -79,7 +85,9 @@ DEFAULT_BUDGET_USD = 1.0
 def run(
     pack: Annotated[str, typer.Option(help="Built-in pack name, or a path to a pack .json file.")],
     incident: Annotated[str, typer.Option(help="Id of the incident in the pack.")],
-    payload: Annotated[Path, typer.Option(help="Payload .json file for the poisoned copy.")],
+    payload: Annotated[
+        str, typer.Option(help="Built-in payload id, or a payload .json file, to poison with.")
+    ],
     out: Annotated[Path, typer.Option(help="New directory for results and per-run logs.")],
     runs: Annotated[int, typer.Option(help="Runs per variant (clean and poisoned).")] = 5,
     model: Annotated[str | None, typer.Option(help="Claude model alias or id.")] = None,
@@ -108,7 +116,7 @@ def run(
             agent,
             pack,
             incident,
-            payload_path=payload,
+            payload=payload,
             runs=runs,
             out_dir=out,
             entry_index=entry_index,
@@ -173,3 +181,18 @@ def _report(result: Score) -> str:
     if result.underpowered:
         lines += ["", "Some effects are too small to attribute with this many runs; add --runs."]
     return "\n".join(lines)
+
+
+@app.command(name="list")
+def list_command() -> None:
+    """List the built-in packs, their incidents and fields, and the built-in payloads."""
+    registry = load_registry()
+    typer.echo("Packs (--pack) and incidents (--incident), with the fields payloads can target:")
+    for name in builtin_packs():
+        typer.echo(f"  {name}")
+        for item in load_builtin_pack(name).incidents:
+            fields = ", ".join(sorted({t.field for t in targets(item, registry)}))
+            typer.echo(f"    {item.id}: {fields}")
+    typer.echo("\nPayloads (--payload), by class:")
+    for payload in sorted(load_payloads().payloads, key=lambda p: (p.cls.value, p.id)):
+        typer.echo(f"  {payload.cls.value:<20} {payload.id:<40} {payload.field}")

@@ -20,6 +20,7 @@ from tracebait.honeypot.recorder import Action, read_actions
 from tracebait.honeypot.server import SERVER_NAME
 from tracebait.honeypot.session import SessionError, resolve_incident
 from tracebait.models import FrozenModel, Payload, Verdict
+from tracebait.payloads import PayloadError, resolve_payload
 from tracebait.runners.agent import Agent, AgentTask, McpServer
 from tracebait.runners.prompt import TRIAGE_PROMPT
 
@@ -65,26 +66,30 @@ def run_experiment(
     pack: str,
     incident_id: str,
     *,
-    payload_path: Path,
+    payload: str,
     runs: int,
     out_dir: Path,
     entry_index: int | None = None,
     inventory_path: Path | None = None,
     timeout_seconds: int = 600,
 ) -> tuple[RunRecord, ...]:
-    """Run ``agent`` ``runs`` times on each variant; write and return every record."""
+    """Run ``agent`` ``runs`` times on each variant; write and return every record.
+
+    ``payload`` is a built-in payload id or a path to a payload ``.json`` file.
+    """
     if not 1 <= runs <= MAX_RUNS:
         raise ExperimentError(f"runs must be between 1 and {MAX_RUNS}")
     results_path = out_dir / RESULTS_FILE
     if results_path.exists():
         raise ExperimentError(f"{results_path} already exists; choose a new output directory")
-    # The honeypot runs in the agent's working directory, so every path must be absolute.
+    # The honeypot runs in the agent's working directory, so file paths must be absolute.
     pack_ref = str(Path(pack).resolve()) if Path(pack).suffix == ".json" else pack
+    payload_ref = str(Path(payload).resolve()) if Path(payload).suffix == ".json" else payload
     try:
-        resolve_incident(pack_ref, incident_id, payload_path=payload_path, entry_index=entry_index)
-        payload = Payload.model_validate_json(payload_path.read_bytes())
+        poison = resolve_payload(payload_ref)
+        resolve_incident(pack_ref, incident_id, payload=poison, entry_index=entry_index)
         inventory = load_inventory(inventory_path) if inventory_path else Inventory()
-    except (SessionError, InventoryError, OSError, ValidationError) as exc:
+    except (PayloadError, SessionError, InventoryError) as exc:
         raise ExperimentError(str(exc)) from exc
 
     settings = ExperimentSettings(
@@ -93,13 +98,13 @@ def run_experiment(
         incident=incident_id,
         entry_index=entry_index,
         runs=runs,
-        payload=payload,
+        payload=poison,
         inventory=inventory,
     )
     base = ["-m", "tracebait", "honeypot", "--pack", pack_ref, "--incident", incident_id]
     if inventory_path is not None:
         base += ["--inventory", str(inventory_path.resolve())]
-    poisoned = ["--payload", str(payload_path.resolve())]
+    poisoned = ["--payload", payload_ref]
     if entry_index is not None:
         poisoned += ["--entry-index", str(entry_index)]
     honeypot = {Variant.CLEAN: base, Variant.POISONED: base + poisoned}

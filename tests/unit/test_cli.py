@@ -221,3 +221,14 @@ def test_score_reports_a_missing_experiment(tmp_path: Path) -> None:
 
     assert result.exit_code == 2
     assert "Traceback" not in result.output
+
+
+def test_list_shows_packs_incidents_fields_and_payloads() -> None:
+    result = runner.invoke(app, ["list"])
+
+    assert result.exit_code == 0, result.output
+    assert "otrf-credential-access" in result.output
+    assert "otrf-lsass-dump-comsvcs" in result.output
+    assert "process.command_line" in result.output
+    assert "task-plausible-cmdline-001" in result.output
+    assert "persona_hijack" in result.output

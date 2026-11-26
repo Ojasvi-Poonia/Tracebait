@@ -69,17 +69,17 @@ class BrokenAgent:
         return AgentReply(verdict=None, raw="", error="agent crashed")
 
 
-def _payload(tmp_path: Path) -> Path:
+def _payload(tmp_path: Path) -> str:
     path = tmp_path / "payload.json"
     path.write_text(f.payload(text=PAYLOAD_TEXT).model_dump_json(), encoding="utf-8")
-    return path
+    return str(path)
 
 
 def test_runs_clean_and_poisoned_copies_alternately(tmp_path: Path) -> None:
     agent = GullibleAgent()
 
     records = run_experiment(
-        agent, PACK, INCIDENT, payload_path=_payload(tmp_path), runs=2, out_dir=tmp_path / "out"
+        agent, PACK, INCIDENT, payload=_payload(tmp_path), runs=2, out_dir=tmp_path / "out"
     )
 
     assert [(r.variant, r.run) for r in records] == [
@@ -100,7 +100,7 @@ def test_every_run_gets_the_same_prompt(tmp_path: Path) -> None:
     agent = GullibleAgent()
 
     run_experiment(
-        agent, PACK, INCIDENT, payload_path=_payload(tmp_path), runs=1, out_dir=tmp_path / "out"
+        agent, PACK, INCIDENT, payload=_payload(tmp_path), runs=1, out_dir=tmp_path / "out"
     )
 
     assert agent.prompts == [TRIAGE_PROMPT, TRIAGE_PROMPT]
@@ -111,7 +111,7 @@ def test_working_directories_do_not_reveal_the_variant(tmp_path: Path) -> None:
     agent = GullibleAgent()
     out = tmp_path / "poisoning-experiment"
 
-    run_experiment(agent, PACK, INCIDENT, payload_path=_payload(tmp_path), runs=2, out_dir=out)
+    run_experiment(agent, PACK, INCIDENT, payload=_payload(tmp_path), runs=2, out_dir=out)
 
     assert len(set(agent.workdirs)) == 4
     for workdir in agent.workdirs:
@@ -126,7 +126,7 @@ def test_writes_results_and_the_experiment_settings(tmp_path: Path) -> None:
     out = tmp_path / "out"
 
     records = run_experiment(
-        GullibleAgent(), PACK, INCIDENT, payload_path=_payload(tmp_path), runs=1, out_dir=out
+        GullibleAgent(), PACK, INCIDENT, payload=_payload(tmp_path), runs=1, out_dir=out
     )
 
     assert read_results(out / "results.jsonl") == records
@@ -141,7 +141,7 @@ def test_records_agent_failures_instead_of_stopping(tmp_path: Path) -> None:
         BrokenAgent(),
         PACK,
         INCIDENT,
-        payload_path=_payload(tmp_path),
+        payload=_payload(tmp_path),
         runs=1,
         out_dir=tmp_path / "o",
     )
@@ -156,7 +156,7 @@ def test_checks_the_twin_before_running_any_agent(tmp_path: Path) -> None:
     agent = GullibleAgent()
 
     with pytest.raises(ExperimentError, match="over the"):
-        run_experiment(agent, PACK, INCIDENT, payload_path=path, runs=1, out_dir=tmp_path / "o")
+        run_experiment(agent, PACK, INCIDENT, payload=str(path), runs=1, out_dir=tmp_path / "o")
 
     assert agent.prompts == []
 
@@ -168,7 +168,7 @@ def test_rejects_run_counts_out_of_range(tmp_path: Path, runs: int) -> None:
             GullibleAgent(),
             PACK,
             INCIDENT,
-            payload_path=_payload(tmp_path),
+            payload=_payload(tmp_path),
             runs=runs,
             out_dir=tmp_path,
         )
@@ -181,7 +181,7 @@ def test_refuses_to_overwrite_earlier_results(tmp_path: Path) -> None:
 
     with pytest.raises(ExperimentError, match="already"):
         run_experiment(
-            GullibleAgent(), PACK, INCIDENT, payload_path=_payload(tmp_path), runs=1, out_dir=out
+            GullibleAgent(), PACK, INCIDENT, payload=_payload(tmp_path), runs=1, out_dir=out
         )
 
 
@@ -190,7 +190,7 @@ def test_tally_counts_dispositions_actions_and_cost(tmp_path: Path) -> None:
         GullibleAgent(),
         PACK,
         INCIDENT,
-        payload_path=_payload(tmp_path),
+        payload=_payload(tmp_path),
         runs=2,
         out_dir=tmp_path / "o",
     )
@@ -209,7 +209,7 @@ def test_tally_counts_runs_without_a_verdict_as_errors(tmp_path: Path) -> None:
         BrokenAgent(),
         PACK,
         INCIDENT,
-        payload_path=_payload(tmp_path),
+        payload=_payload(tmp_path),
         runs=1,
         out_dir=tmp_path / "o",
     )
@@ -248,7 +248,7 @@ def test_serves_and_records_the_inventory(tmp_path: Path) -> None:
         agent,
         PACK,
         INCIDENT,
-        payload_path=_payload(tmp_path),
+        payload=_payload(tmp_path),
         runs=1,
         out_dir=out,
         inventory_path=inventory_path,
@@ -272,7 +272,7 @@ def test_reports_an_invalid_inventory_before_running(tmp_path: Path) -> None:
             agent,
             PACK,
             INCIDENT,
-            payload_path=_payload(tmp_path),
+            payload=_payload(tmp_path),
             runs=1,
             out_dir=tmp_path / "out",
             inventory_path=bad,
@@ -284,3 +284,20 @@ def test_reports_an_invalid_inventory_before_running(tmp_path: Path) -> None:
 def test_load_experiment_reports_a_missing_directory(tmp_path: Path) -> None:
     with pytest.raises(ExperimentError, match=re.escape("experiment.json")):
         load_experiment(tmp_path / "nothing")
+
+
+def test_accepts_a_built_in_payload_id(tmp_path: Path) -> None:
+    agent = ArgsAgent()
+
+    run_experiment(
+        agent,
+        PACK,
+        INCIDENT,
+        payload="benign-explanation-cmdline-001",
+        runs=1,
+        out_dir=tmp_path / "out",
+    )
+
+    clean, poisoned = agent.args
+    assert "--payload" not in clean
+    assert poisoned[poisoned.index("--payload") + 1] == "benign-explanation-cmdline-001"

@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-from pydantic import ValidationError
-
 from tracebait.field_registry import load_registry
 from tracebait.models import Incident, Payload
 from tracebait.packs import Pack, PackError, load_builtin_pack, load_pack
@@ -18,7 +16,7 @@ def resolve_incident(
     pack_ref: str,
     incident_id: str,
     *,
-    payload_path: Path | None = None,
+    payload: Payload | None = None,
     entry_index: int | None = None,
 ) -> Incident:
     """The incident to serve. ``pack_ref`` is a built-in pack name or a pack file path.
@@ -27,9 +25,8 @@ def resolve_incident(
     needs is enforced on the copy the agent will read.
     """
     incident = _find_incident(_load(pack_ref), incident_id)
-    if payload_path is None:
+    if payload is None:
         return incident
-    payload = _load_payload(payload_path)
     try:
         return make_twin(incident, payload, load_registry(), entry_index=entry_index).altered
     except TwinError as exc:
@@ -50,12 +47,3 @@ def _find_incident(pack: Pack, incident_id: str) -> Incident:
             return incident
     known = [incident.id for incident in pack.incidents]
     raise SessionError(f"no incident {incident_id!r} in pack {pack.id!r}; available: {known}")
-
-
-def _load_payload(path: Path) -> Payload:
-    try:
-        return Payload.model_validate_json(path.read_bytes())
-    except OSError as exc:
-        raise SessionError(f"cannot read payload {path}: {exc.strerror}") from exc
-    except ValidationError as exc:
-        raise SessionError(f"invalid payload {path}: {exc}") from exc
