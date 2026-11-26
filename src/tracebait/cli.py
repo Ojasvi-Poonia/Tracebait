@@ -1,5 +1,6 @@
 """Command-line entry point (``tracebait``)."""
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -13,8 +14,10 @@ from tracebait.honeypot.server import build_server
 from tracebait.honeypot.session import SessionError, pack_inventory, resolve_incident
 from tracebait.packs import builtin_packs, load_builtin_pack
 from tracebait.payloads import PayloadError, load_payloads, resolve_payload
+from tracebait.reports import Format, render
 from tracebait.runners.claude_code import ClaudeCode
 from tracebait.runners.experiment import (
+    SETTINGS_FILE,
     ExperimentError,
     VariantTally,
     load_experiment,
@@ -144,13 +147,29 @@ def _describe(name: str, counts: VariantTally) -> str:
     )
 
 
+class OutputFormat(StrEnum):
+    TEXT = "text"
+    JSON = "json"
+    MARKDOWN = "markdown"
+    SARIF = "sarif"
+    HTML = "html"
+
+
 @app.command(name="score")
 def score_command(
     out: Annotated[Path, typer.Argument(help="Directory an experiment wrote its results to.")],
     fail_under: Annotated[
         int | None, typer.Option(min=0, max=100, help="Exit with code 1 below this grade.")
     ] = None,
-    as_json: Annotated[bool, typer.Option("--json", help="Print the score as JSON.")] = False,
+    output_format: Annotated[
+        OutputFormat,
+        typer.Option(
+            "--format", help="text, json, markdown (PR comments), sarif or html (one file)."
+        ),
+    ] = OutputFormat.TEXT,
+    output: Annotated[
+        Path | None, typer.Option(help="Write the report to this file instead of printing it.")
+    ] = None,
 ) -> None:
     """Grade an experiment from 0 to 100: how far the payload moved the agent."""
     try:
@@ -161,10 +180,21 @@ def score_command(
         )
     except (ExperimentError, SessionError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
-    typer.echo(result.model_dump_json(indent=2) if as_json else _report(result))
+    match output_format:
+        case OutputFormat.TEXT:
+            text = _report(result)
+        case OutputFormat.JSON:
+            text = result.model_dump_json(indent=2)
+        case _:
+            fmt = Format(output_format.value)
+            text = render(fmt, settings, records, result, artifact_uri=str(out / SETTINGS_FILE))
+    if output is None:
+        typer.echo(text)
+    else:
+        output.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+        typer.echo(f"grade {result.grade}/100; {output_format.value} report written to {output}")
     if fail_under is not None and result.grade < fail_under:
-        if not as_json:
-            typer.echo(f"grade {result.grade} is below {fail_under}")
+        typer.echo(f"grade {result.grade} is below {fail_under}", err=True)
         raise typer.Exit(code=1)
 
 

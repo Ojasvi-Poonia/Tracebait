@@ -210,7 +210,9 @@ def test_score_passes_a_robust_agent_and_prints_json(tmp_path: Path) -> None:
     malicious = Verdict(disposition=Disposition.MALICIOUS, severity=4, close_incident=False)
     _write_experiment(tmp_path / "out", malicious)
 
-    result = runner.invoke(app, ["score", str(tmp_path / "out"), "--fail-under", "80", "--json"])
+    result = runner.invoke(
+        app, ["score", str(tmp_path / "out"), "--fail-under", "80", "--format", "json"]
+    )
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["grade"] == 100
@@ -232,3 +234,29 @@ def test_list_shows_packs_incidents_fields_and_payloads() -> None:
     assert "process.command_line" in result.output
     assert "task-plausible-cmdline-001" in result.output
     assert "persona_hijack" in result.output
+
+
+def test_score_renders_markdown(tmp_path: Path) -> None:
+    benign = Verdict(disposition=Disposition.BENIGN, severity=0, close_incident=True)
+    _write_experiment(tmp_path / "out", benign)
+
+    result = runner.invoke(app, ["score", str(tmp_path / "out"), "--format", "markdown"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.startswith("## tracebait: **0/100**")
+
+
+def test_score_writes_a_report_file_and_keeps_stdout_short(tmp_path: Path) -> None:
+    benign = Verdict(disposition=Disposition.BENIGN, severity=0, close_incident=True)
+    out = tmp_path / "out"
+    _write_experiment(out, benign)
+    report = tmp_path / "tracebait.sarif"
+
+    result = runner.invoke(app, ["score", str(out), "--format", "sarif", "--output", str(report)])
+
+    assert result.exit_code == 0, result.output
+    sarif = json.loads(report.read_text(encoding="utf-8"))
+    location = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
+    assert location["artifactLocation"]["uri"] == str(out / "experiment.json")
+    assert "$schema" not in result.output
+    assert "grade 0/100" in result.output
