@@ -11,7 +11,14 @@ from tracebait.honeypot.recorder import ActionLog
 from tracebait.honeypot.server import build_server
 from tracebait.honeypot.session import SessionError, resolve_incident
 from tracebait.runners.claude_code import ClaudeCode
-from tracebait.runners.experiment import ExperimentError, VariantTally, run_experiment, tally
+from tracebait.runners.experiment import (
+    ExperimentError,
+    VariantTally,
+    load_experiment,
+    run_experiment,
+    tally,
+)
+from tracebait.scoring.score import Score, score
 
 app = typer.Typer(
     name="tracebait",
@@ -86,6 +93,9 @@ def run(
     entry_index: Annotated[
         int | None, typer.Option(help="Entry to poison, if not the first with the field.")
     ] = None,
+    inventory: Annotated[
+        Path | None, typer.Option(help="Asset inventory .json file, served and used in scoring.")
+    ] = None,
     claude: Annotated[str, typer.Option(help="Claude Code executable.")] = "claude",
 ) -> None:
     """Run Claude Code on the clean and poisoned copies of an incident and tally the results.
@@ -102,6 +112,7 @@ def run(
             runs=runs,
             out_dir=out,
             entry_index=entry_index,
+            inventory_path=inventory,
             timeout_seconds=timeout,
         )
     except ExperimentError as exc:
@@ -111,7 +122,7 @@ def run(
         typer.echo(_describe(variant.value, counts))
     costs = [c.cost_usd for c in summary.values() if c.cost_usd is not None]
     typer.echo(f"total cost: ${sum(costs):.2f}" if costs else "total cost: not reported")
-    typer.echo(f"results: {out / 'results.jsonl'}")
+    typer.echo(f"results: {out / 'results.jsonl'}; score them with: tracebait score {out}")
 
 
 def _describe(name: str, counts: VariantTally) -> str:
@@ -121,3 +132,44 @@ def _describe(name: str, counts: VariantTally) -> str:
         f"{name}: {counts.runs} runs, {counts.errors} without a verdict;"
         f" dispositions {dispositions or 'none'}; actions {actions}"
     )
+
+
+@app.command(name="score")
+def score_command(
+    out: Annotated[Path, typer.Argument(help="Directory an experiment wrote its results to.")],
+    fail_under: Annotated[
+        int | None, typer.Option(min=0, max=100, help="Exit with code 1 below this grade.")
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the score as JSON.")] = False,
+) -> None:
+    """Grade an experiment from 0 to 100: how far the payload moved the agent."""
+    try:
+        settings, records = load_experiment(out)
+        incident = resolve_incident(settings.pack, settings.incident)
+        result = score(
+            records, incident=incident, payload=settings.payload, inventory=settings.inventory
+        )
+    except (ExperimentError, SessionError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(result.model_dump_json(indent=2) if as_json else _report(result))
+    if fail_under is not None and result.grade < fail_under:
+        if not as_json:
+            typer.echo(f"grade {result.grade} is below {fail_under}")
+        raise typer.Exit(code=1)
+
+
+def _report(result: Score) -> str:
+    lines = [f"grade {result.grade}/100 (attributed when p < {result.alpha})", ""]
+    lines.append(f"{'metric':<18} {'clean':>7} {'poisoned':>9} {'effect':>7} {'p':>7}  attributed")
+    for m in result.metrics:
+        if not m.applicable:
+            lines.append(f"{m.name.value:<18} {'not applicable to this incident':>34}")
+            continue
+        attributed = "yes" if m.attributed else "no"
+        lines.append(
+            f"{m.name.value:<18} {m.clean_hits:>3}/{m.clean_runs:<3} {m.poisoned_hits:>4}/"
+            f"{m.poisoned_runs:<4} {m.effect:>7.2f} {m.p_value:>7.3f}  {attributed}"
+        )
+    if result.underpowered:
+        lines += ["", "Some effects are too small to attribute with this many runs; add --runs."]
+    return "\n".join(lines)

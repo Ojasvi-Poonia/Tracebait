@@ -6,7 +6,6 @@ own action log and an empty, neutrally named temporary working directory. The tw
 built before any agent starts, so an unusable payload costs nothing.
 """
 
-import json
 import sys
 import tempfile
 import time
@@ -16,6 +15,7 @@ from pathlib import Path
 
 from pydantic import Field, ValidationError
 
+from tracebait.honeypot.inventory import Inventory, InventoryError, load_inventory
 from tracebait.honeypot.recorder import Action, read_actions
 from tracebait.honeypot.server import SERVER_NAME
 from tracebait.honeypot.session import SessionError, resolve_incident
@@ -48,6 +48,18 @@ class RunRecord(FrozenModel):
     duration_seconds: float = Field(ge=0)
 
 
+class ExperimentSettings(FrozenModel):
+    """Everything needed to rerun or score an experiment, saved as experiment.json."""
+
+    agent: str
+    pack: str  # built-in pack name, or an absolute path to a pack file
+    incident: str
+    entry_index: int | None
+    runs: int = Field(ge=1, le=MAX_RUNS)
+    payload: Payload
+    inventory: Inventory
+
+
 def run_experiment(
     agent: Agent,
     pack: str,
@@ -57,6 +69,7 @@ def run_experiment(
     runs: int,
     out_dir: Path,
     entry_index: int | None = None,
+    inventory_path: Path | None = None,
     timeout_seconds: int = 600,
 ) -> tuple[RunRecord, ...]:
     """Run ``agent`` ``runs`` times on each variant; write and return every record."""
@@ -65,33 +78,58 @@ def run_experiment(
     results_path = out_dir / RESULTS_FILE
     if results_path.exists():
         raise ExperimentError(f"{results_path} already exists; choose a new output directory")
+    # The honeypot runs in the agent's working directory, so every path must be absolute.
+    pack_ref = str(Path(pack).resolve()) if Path(pack).suffix == ".json" else pack
     try:
-        resolve_incident(pack, incident_id, payload_path=payload_path, entry_index=entry_index)
+        resolve_incident(pack_ref, incident_id, payload_path=payload_path, entry_index=entry_index)
         payload = Payload.model_validate_json(payload_path.read_bytes())
-    except (SessionError, OSError, ValidationError) as exc:
+        inventory = load_inventory(inventory_path) if inventory_path else Inventory()
+    except (SessionError, InventoryError, OSError, ValidationError) as exc:
         raise ExperimentError(str(exc)) from exc
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    settings = {
-        "agent": agent.name,
-        "pack": pack,
-        "incident": incident_id,
-        "entry_index": entry_index,
-        "runs": runs,
-        "payload": payload.model_dump(mode="json"),
-    }
-    (out_dir / SETTINGS_FILE).write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    results_path.write_text("", encoding="utf-8")
+    settings = ExperimentSettings(
+        agent=agent.name,
+        pack=pack_ref,
+        incident=incident_id,
+        entry_index=entry_index,
+        runs=runs,
+        payload=payload,
+        inventory=inventory,
+    )
+    base = ["-m", "tracebait", "honeypot", "--pack", pack_ref, "--incident", incident_id]
+    if inventory_path is not None:
+        base += ["--inventory", str(inventory_path.resolve())]
+    poisoned = ["--payload", str(payload_path.resolve())]
+    if entry_index is not None:
+        poisoned += ["--entry-index", str(entry_index)]
+    honeypot = {Variant.CLEAN: base, Variant.POISONED: base + poisoned}
 
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / SETTINGS_FILE).write_text(settings.model_dump_json(indent=2) + "\n", "utf-8")
+    results_path.write_text("", encoding="utf-8")
     records: list[RunRecord] = []
     for run in range(1, runs + 1):
         for variant in Variant:
-            honeypot = _honeypot_args(pack, incident_id, variant, payload_path, entry_index)
-            record = _run_once(agent, variant, run, honeypot, out_dir, timeout_seconds)
+            record = _run_once(agent, variant, run, honeypot[variant], out_dir, timeout_seconds)
             with results_path.open("a", encoding="utf-8") as out:
                 out.write(record.model_dump_json() + "\n")
             records.append(record)
     return tuple(records)
+
+
+def load_experiment(out_dir: Path) -> tuple[ExperimentSettings, tuple[RunRecord, ...]]:
+    """The settings and run records an experiment wrote to ``out_dir``."""
+    settings_path = out_dir / SETTINGS_FILE
+    try:
+        settings = ExperimentSettings.model_validate_json(settings_path.read_bytes())
+    except OSError as exc:
+        raise ExperimentError(f"cannot read {settings_path}: {exc.strerror}") from exc
+    except ValidationError as exc:
+        raise ExperimentError(f"invalid {settings_path}: {exc}") from exc
+    try:
+        return settings, read_results(out_dir / RESULTS_FILE)
+    except OSError as exc:
+        raise ExperimentError(f"cannot read {out_dir / RESULTS_FILE}: {exc.strerror}") from exc
 
 
 def read_results(path: Path) -> tuple[RunRecord, ...]:
@@ -102,17 +140,6 @@ def read_results(path: Path) -> tuple[RunRecord, ...]:
         except ValidationError as exc:
             raise ExperimentError(f"{path} line {number} is not a valid run: {exc}") from exc
     return tuple(records)
-
-
-def _honeypot_args(
-    pack: str, incident_id: str, variant: Variant, payload_path: Path, entry_index: int | None
-) -> list[str]:
-    args = ["-m", "tracebait", "honeypot", "--pack", pack, "--incident", incident_id]
-    if variant is Variant.POISONED:
-        args += ["--payload", str(payload_path.resolve())]
-        if entry_index is not None:
-            args += ["--entry-index", str(entry_index)]
-    return args
 
 
 def _run_once(

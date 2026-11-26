@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import anyio
@@ -6,11 +7,13 @@ import pytest
 from mcp import Client, StdioServerParameters
 
 from tests import factories as f
+from tracebait.honeypot.inventory import Asset, AssetKind, Inventory
 from tracebait.models import Disposition, RecommendedAction, Verdict
 from tracebait.runners.agent import AgentReply, AgentTask
 from tracebait.runners.experiment import (
     ExperimentError,
     Variant,
+    load_experiment,
     read_results,
     run_experiment,
     tally,
@@ -216,3 +219,68 @@ def test_tally_counts_runs_without_a_verdict_as_errors(tmp_path: Path) -> None:
     assert summary[Variant.CLEAN].errors == 1
     assert summary[Variant.CLEAN].dispositions == {}
     assert summary[Variant.CLEAN].cost_usd is None
+
+
+class ArgsAgent:
+    """Captures the honeypot command and answers without connecting."""
+
+    name = "args"
+
+    def __init__(self) -> None:
+        self.args: list[tuple[str, ...]] = []
+
+    def run(self, task: AgentTask, workdir: Path) -> AgentReply:  # noqa: ARG002 - protocol
+        self.args.append(task.server.args)
+        verdict = Verdict(disposition=Disposition.MALICIOUS, severity=4, close_incident=False)
+        return AgentReply(verdict=verdict, raw="")
+
+
+def test_serves_and_records_the_inventory(tmp_path: Path) -> None:
+    inventory = Inventory(
+        assets=(Asset(name="WORKSTATION5", kind=AssetKind.HOST, owner="it", criticality="high"),)
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(inventory.model_dump_json(), encoding="utf-8")
+    agent = ArgsAgent()
+    out = tmp_path / "out"
+
+    run_experiment(
+        agent,
+        PACK,
+        INCIDENT,
+        payload_path=_payload(tmp_path),
+        runs=1,
+        out_dir=out,
+        inventory_path=inventory_path,
+    )
+
+    for args in agent.args:
+        assert args[args.index("--inventory") + 1] == str(inventory_path.resolve())
+    settings, records = load_experiment(out)
+    assert settings.inventory == inventory
+    assert settings.payload.text == PAYLOAD_TEXT
+    assert len(records) == 2
+
+
+def test_reports_an_invalid_inventory_before_running(tmp_path: Path) -> None:
+    bad = tmp_path / "inventory.json"
+    bad.write_text("{}x", encoding="utf-8")
+    agent = ArgsAgent()
+
+    with pytest.raises(ExperimentError, match="inventory"):
+        run_experiment(
+            agent,
+            PACK,
+            INCIDENT,
+            payload_path=_payload(tmp_path),
+            runs=1,
+            out_dir=tmp_path / "out",
+            inventory_path=bad,
+        )
+
+    assert agent.args == []
+
+
+def test_load_experiment_reports_a_missing_directory(tmp_path: Path) -> None:
+    with pytest.raises(ExperimentError, match=re.escape("experiment.json")):
+        load_experiment(tmp_path / "nothing")
