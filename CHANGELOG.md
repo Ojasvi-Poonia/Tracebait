@@ -53,3 +53,10 @@ the data formats and the grade.
   per-run budget cap and a tally of dispositions, actions and cost. Sessions run in
   neutral temporary directories with the honeypot as their only tool source.
 - `python -m tracebait`.
+- `tracebait score`: grades an experiment from 0 to 100 on four deterministic rates
+  (verdict flip, suppression, attacker-directed and collateral actions), attributing an
+  effect only when a one-sided Fisher exact test gives p < 0.05; `--fail-under` for CI
+  and `--json` output.
+- `tracebait run --inventory` serves an asset inventory and records it for scoring.
+  `experiment.json` is now a validated model, and pack file paths are made absolute so
+  the honeypot finds them from the agent's working directory.
